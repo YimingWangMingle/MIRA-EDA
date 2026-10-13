@@ -80,6 +80,6 @@ python scripts/recalculate_baselines.py --results_dir results --seed 0
 python scripts/summarize_costs.py --root results --seed 0
 ```
 
-We use seed 0 by default and record actual interaction counts after whole-episode rounding. Each episode has 12 actions. Random reports the mean of 16 evaluation sessions. MIRA uses policy weight averaging from 40% of training onward. Results and checkpoints are written under `ATENA_dataset/results/`.
+We use seed 0 by default and record actual interaction counts after whole-episode rounding. Each episode has 12 actions. Results and checkpoints are written under `ATENA_dataset/results/`.
 
-We record the fixed settings in [protocol.json](protocol.json) and file hashes in [manifest.json](manifest.json). The shared MIRA core is in `revision_support/`; dataset adapters remain in their respective directories. This release covers the algorithm core; shared query caching and batch scheduling are not implemented.
+We record the fixed settings in [protocol.json](protocol.json) and file hashes in [manifest.json](manifest.json). The shared MIRA core is in `revision_support/`.

@@ -3,13 +3,13 @@
 import argparse
 import csv
 import json
-import multiprocessing as mp
 import os
 import random
 
 import numpy as np
 
 from .policy import Candidate, choose_candidate, choose_operation
+from revision_support.galaxy_execution import run_worker_batch
 
 
 METHOD_CONFIG = {
@@ -69,7 +69,8 @@ def execute_selected_operation(pipeline, dataset, action_type, execute_fn):
     result = execute_fn(pipeline, dataset, action_type)
     if result is None:
         return []
-    return result if isinstance(result, list) else [result]
+    datasets = result if isinstance(result, list) else [result]
+    return [dataset for dataset in datasets if _dataset_nonempty(dataset)]
 
 
 def preview_candidates(datasets, parent_dataset, state_encoder):
@@ -82,6 +83,7 @@ def preview_candidates(datasets, parent_dataset, state_encoder):
             dataset,
             parent_dataset=parent_dataset,
             get_reward=False,
+            get_interestingness=True,
         )
         indices.append(index)
         candidates.append(
@@ -120,6 +122,8 @@ def _write_config(args):
 
 
 def run_worker(worker_args):
+    from revision_support.galaxy_results import score_returned_sets, log_returned_sets
+    from revision_support.resources import flush_events
     helpers = _random_helpers()
     args, worker_id, start_episode, end_episode = worker_args
     random.seed(int(args.seed) + worker_id)
@@ -223,6 +227,8 @@ def run_worker(worker_args):
                 extrinsic = 0.0
                 interestingness = 0.0
                 source = "greedy_eda_empty"
+                output_states, extrinsic, interestingness = score_returned_sets(
+                    state_encoder, output_datasets, current_dataset)
                 if candidates:
                     selection = choose_candidate(
                         candidates,
@@ -232,59 +238,19 @@ def run_worker(worker_args):
                         rng=rng,
                     )
                     selected_dataset = output_datasets[source_indices[selection.index]]
-                    try:
-                        selected_state, extrinsic, interestingness = state_encoder.encode_dataset(
-                            selected_dataset,
-                            parent_dataset=current_dataset,
-                            get_reward=True,
-                        )
-                    except Exception as exc:
-                        raise RuntimeError(
-                            f"Galaxy Greedy EDA selected-candidate failure: "
-                            f"episode={episode}, step={step}, "
-                            f"candidate_id={selection.candidate_id}"
-                        ) from exc
+                    selected_state = output_states[source_indices[selection.index]]
                     current_dataset = selected_dataset
                     current_state = np.asarray(selected_state, dtype=np.float64)
                     history_states.append(current_state)
                     visited_ids.add(int(selection.candidate_id))
                     source = "greedy_eda"
 
-                output_set_id = (
-                    helpers.safe_set_id(selected_dataset, default=input_set_id)
-                    if selected_dataset is not None
-                    else input_set_id
-                )
                 ep_ext += float(extrinsic)
                 ep_int += float(interestingness)
-                loggable_id = (
-                    helpers.loggable_set_id(selected_dataset)
-                    if selected_dataset is not None
-                    else None
-                )
-                if loggable_id is not None:
-                    episode_set_ids.add(loggable_id)
-                    if loggable_id not in logged_state_ids and selected_state is not None:
-                        logged_state_ids.add(loggable_id)
-                        state_writer.writerow([loggable_id] + list(selected_state))
-
-                trace_writer.writerow(
-                    [
-                        episode,
-                        worker_id,
-                        step,
-                        output_set_id,
-                        float(extrinsic),
-                        float(interestingness),
-                        family,
-                        parameter,
-                        input_set_id,
-                        operation_action,
-                        0,
-                        0,
-                        source,
-                    ]
-                )
+                log_returned_sets(output_datasets, output_states, episode_set_ids, logged_state_ids,
+                    state_writer, trace_writer, [episode, worker_id, step],
+                    [family, parameter, input_set_id, operation_action, source],
+                    float(extrinsic), float(interestingness))
 
             row = {
                 "episode": episode,
@@ -308,6 +274,7 @@ def run_worker(worker_args):
                 f"sets_viewed: {len(episode_set_ids)}"
             )
     finally:
+        flush_events()
         trace_file.close()
         state_file.close()
         if partial_file is not None:
@@ -413,11 +380,7 @@ def run(args):
         (args, worker_id, start, end)
         for worker_id, start, end in episode_ranges(args.episodes, args.workers)
     ]
-    if len(tasks) == 1:
-        results = [run_worker(tasks[0])]
-    else:
-        with mp.Pool(processes=len(tasks)) as pool:
-            results = pool.map(run_worker, tasks)
+    results = run_worker_batch(run_worker, tasks, len(tasks))
     paths = _merge_results(args, results)
     for label, path in paths.items():
         print(f"Saved {label} to {path}")
@@ -432,7 +395,7 @@ def build_parser():
     parser.add_argument("--target_set", type=str, default=None)
     parser.add_argument("--episodes", type=int, default=1000)
     parser.add_argument("--steps", type=int, default=250)
-    parser.add_argument("--workers", type=int, default=12)
+    parser.add_argument("--workers", type=int, default=14)
     parser.add_argument("--mode", type=str, default="scattered")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--target_seed", type=int, default=None)

@@ -6,15 +6,19 @@ import random
 import sys
 from pathlib import Path
 
-import numpy as np
-
-
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT.parent))
+from revision_support.covertype_defaults import configure_covertype_runtime
+
+configure_covertype_runtime()
+
+import numpy as np
 
 from covertype_rl.actions import build_action_space
 from covertype_rl.data import load_covertype
 from covertype_rl.environment import FixedSetEnvironment
+from revision_support.resources import flush_events
 from covertype_rl.fixed_sets import ensure_fixed_universe
 from covertype_rl.targets import resolve_target_set
 
@@ -78,6 +82,10 @@ def episode_ranges(total_episodes, workers):
 
 
 def build_context(args):
+    if getattr(args, '_validated_cache', None) is not None:
+        from covertype_rl.fixed_sets import load_fixed_universe
+        directory, targets = args._validated_cache
+        return build_action_space(10, args.n_bins), load_fixed_universe(directory), Path(directory), targets
     root_dir = ROOT
     csv_path = Path(args.csv_path)
     if not csv_path.is_absolute():
@@ -104,7 +112,9 @@ def build_context(args):
         max_set_size=args.max_set_size,
         preprocess_name=args.preprocess_name,
         force=args.force_preprocess,
+        csv_path=csv_path,
     )
+    args._validated_cache = (str(universe_dir), target_items)
     return actions, universe, universe_dir, target_items
 
 
@@ -238,6 +248,7 @@ def run_worker(worker_args):
             }
         )
 
+        flush_events()
         print(
             f"EP{episode} random_operator worker{worker_id} | "
             f"Ext_R: {totals['extrinsic_reward']:.6f} | sets_viewed: {len(episode_set_ids)}",
@@ -313,6 +324,7 @@ def write_states(path, states_by_set):
 
 def run(args):
     args.baseline = "random"
+    build_context(args)
     tasks = [
         (args, worker_id, start, end)
         for worker_id, start, end in episode_ranges(args.episodes, args.workers)
@@ -363,20 +375,21 @@ def run(args):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(
+    from revision_support.covertype_defaults import CovertypeArgumentParser
+    parser = CovertypeArgumentParser(
         description="Run Covertype random operator baseline over the fixed-set graph."
     )
     parser.add_argument("--baseline", choices=["random"], default="random")
     parser.add_argument("--csv_path", default="covertype.csv")
-    parser.add_argument("--target_set", default="fixed_seed_1")
+    parser.add_argument("--target_set", default=None)
     parser.add_argument("--target_seed", type=int, default=None)
     parser.add_argument("--target_size", type=int, default=1000)
     parser.add_argument("--episodes", type=int, default=1000)
     parser.add_argument("--steps", type=int, default=250)
-    parser.add_argument("--workers", type=int, default=12)
+    parser.add_argument("--workers", type=int, default=14)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--n_bins", type=int, default=10)
-    parser.add_argument("--n_sets", type=int, default=50000)
+    parser.add_argument("--n_sets", type=int, default=100000)
     parser.add_argument("--min_set_size", type=int, default=10)
     parser.add_argument("--max_set_size", type=int, default=200000)
     parser.add_argument("--preprocess_name", default=None)

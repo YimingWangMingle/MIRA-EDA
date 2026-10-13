@@ -1,9 +1,14 @@
 import csv
+import time
 import os
 import random
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from atena_common.costs import QueryCosts, session_cost_row, write_costs, write_session, average_random_rows
 
 import numpy as np
 
@@ -37,11 +42,7 @@ def run_greedy(*args, **kwargs):
 
 
 def method_reward_mode(method: str) -> str:
-    if method == "dora":
-        return "dora"
-    if method == "greedy":
-        return "official_compound"
-    return "compound"
+    return "dora" if method == "dora" else "official_compound"
 
 
 def formal_final_row(metrics_rows):
@@ -49,6 +50,7 @@ def formal_final_row(metrics_rows):
 
 
 def run_experiment(args):
+    training_started = time.perf_counter()
     if args.method not in METHODS:
         raise ValueError(f"Unknown method {args.method}. Choices: {sorted(METHODS)}")
 
@@ -61,7 +63,7 @@ def run_experiment(args):
         / f"{args.schema}{args.dataset_number}"
         / f"seed{args.seed}"
     )
-    result_dir.mkdir(parents=True, exist_ok=True)
+    result_dir.mkdir(parents=True, exist_ok=False)
     write_json(result_dir / "config.json", vars(args))
 
     if args.method == "greedy":
@@ -96,6 +98,7 @@ def run_experiment(args):
     tf.random.set_seed(args.seed)
     model = PolicyValueNet(probe_env.state_dim, probe_env.action_dim, hidden=args.hidden)
     optimizer = tf.keras.optimizers.Adam(float(args.lr))
+    training_queries = QueryCosts()
 
     metrics_rows = []
     train_log_path = result_dir / "train_log.csv"
@@ -122,6 +125,8 @@ def run_experiment(args):
                 worker_args.append((args, policy_weights, worker_seed))
 
             rollouts = executor.map(worker_args)
+            for rollout in rollouts:
+                training_queries.add(rollout["query_costs"])
             batch = _merge_rollouts(rollouts)
             steps_done += int(len(batch["rewards"]))
             update_idx += 1
@@ -152,39 +157,33 @@ def run_experiment(args):
 
     if metrics_rows:
         write_json(result_dir / FORMAL_FINAL_FILE, formal_final_row(metrics_rows))
+    write_costs(result_dir, metrics_rows, training_started, steps_done, training_queries)
     return metrics_rows
 
 
 def run_random(args, result_dir):
     rows = []
     for episode in range(max(1, args.random_eval_episodes)):
-        env = make_env(
-            args.schema,
-            args.dataset_number,
-            args.seed + episode,
-            args,
-            reward_mode=method_reward_mode(args.method),
-        )
+        started = time.perf_counter()
+        env = make_env(args.schema, args.dataset_number, args.seed + episode, args,
+                       reward_mode=method_reward_mode(args.method))
+        setup_seconds = time.perf_counter() - started
+        started = time.perf_counter()
         env.reset()
         done = False
         total = 0.0
         while not done:
-            action = env.sample_legal_action()
-            _, reward, done, _ = env.step(action)
+            _, reward, done, _ = env.step(env.sample_legal_action())
             total += float(reward)
-        row = {
-            "method": args.method,
-            "schema": args.schema,
-            "dataset": args.dataset_number,
-            "seed": args.seed,
-            "steps": 0,
-            "episode": episode,
-            "episode_reward": total,
-            **official_metrics(args.schema, args.dataset_number, env.actions),
-        }
+        row = dict(method=args.method, schema=args.schema, dataset=args.dataset_number,
+                   seed=args.seed, steps=0, episode=episode, episode_reward=total,
+                   common_task_reward=total, session_setup_seconds=setup_seconds,
+                   **session_cost_row(env, started, lambda: official_metrics(args.schema, args.dataset_number, env.actions)))
+        write_session(Path(result_dir) / f"session_random_{episode}.json", env.actions)
         rows.append(row)
     write_metrics_csv(result_dir / FORMAL_METRICS_FILE, rows)
-    write_json(result_dir / FORMAL_FINAL_FILE, rows[-1])
+    write_json(result_dir / FORMAL_FINAL_FILE, average_random_rows(rows))
+    write_costs(result_dir, rows)
     return rows
 
 
@@ -218,6 +217,7 @@ def rollout_worker(payload):
     next_states = []
     masks = []
     total_reward = 0.0
+    task_rewards = []
 
     while not done:
         probs, value = model(
@@ -226,7 +226,8 @@ def rollout_worker(payload):
         mask = env.legal_action_mask()
         policy = _masked_probs(probs.numpy()[0], mask)
         action = int(np.random.choice(env.action_dim, p=policy))
-        next_state, reward, done, _ = env.step(action)
+        next_state, reward, done, info = env.step(action)
+        task_rewards.append(float(info["common_task_reward"]))
 
         states.append(state)
         actions.append(action)
@@ -248,17 +249,20 @@ def rollout_worker(payload):
         "states": np.asarray(states, dtype=np.float32),
         "actions": np.asarray(actions, dtype=np.int64),
         "rewards": rewards_array,
-        "task_rewards": rewards_array.copy(),
+        "task_rewards": np.asarray(task_rewards, dtype=np.float32),
+        "values": np.asarray(values + [0.0], dtype=np.float32),
         "returns": returns.astype(np.float32),
         "advantages": advantages.astype(np.float32),
         "next_states": np.asarray(next_states, dtype=np.float32),
         "masks": np.asarray(masks, dtype=np.float32),
         "episode_reward": float(total_reward),
-        "episode_task_reward": float(total_reward),
+        "episode_task_reward": float(sum(task_rewards)),
+        "query_costs": env.query_costs.snapshot(),
     }
 
 
 def evaluate_policy(args, model, result_dir: Path, steps: int):
+    started = time.perf_counter()
     env = make_env(
         args.schema,
         args.dataset_number,
@@ -266,15 +270,19 @@ def evaluate_policy(args, model, result_dir: Path, steps: int):
         args,
         reward_mode=method_reward_mode(args.method),
     )
+    setup_seconds = time.perf_counter() - started
+    started = time.perf_counter()
     state = env.reset()
     done = False
     total = 0.0
+    common_total = 0.0
     while not done:
         probs, _ = model(
             np.asarray(state, dtype=np.float32).reshape(1, -1), training=False
         )
         action = int(np.argmax(_masked_probs(probs.numpy()[0], env.legal_action_mask())))
-        state, reward, done, _ = env.step(action)
+        state, reward, done, info = env.step(action)
+        common_total += float(info["common_task_reward"])
         total += float(reward)
 
     actions_repr = [repr(action) for action in env.actions]
@@ -285,10 +293,13 @@ def evaluate_policy(args, model, result_dir: Path, steps: int):
         "seed": args.seed,
         "steps": int(steps),
         "episode_reward": float(total),
-        **official_metrics(args.schema, args.dataset_number, env.actions),
+        "common_task_reward": common_total,
+        "session_setup_seconds": setup_seconds,
+        **session_cost_row(env, started, lambda: official_metrics(args.schema, args.dataset_number, env.actions)),
     }
     row = attach_selection_features(row, actions_repr)
     write_json(result_dir / f"{FORMAL_ACTION_PREFIX}{steps}.json", actions_repr)
+    write_session(result_dir / f"session_steps{steps}.json", env.actions)
     return row
 
 
@@ -307,6 +318,9 @@ def _masked_probs(probs, mask):
             fallback[valid] = 1.0 / valid.size
         return fallback
     return probs / total
+
+
+
 
 
 def _merge_rollouts(rollouts):

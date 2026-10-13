@@ -12,6 +12,8 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 
+from atena_common.costs import average_random_rows
+
 IDENTITY_FIELDS = ("method", "schema", "dataset", "seed", "steps")
 OFFICIAL_METRIC_FIELDS = (
     "Precision",
@@ -45,8 +47,10 @@ def _validate_row(row, source):
         if field not in row:
             raise ValueError(f"{source} missing official metric: {field}")
         _finite_number(row[field], f"{source} {field}")
+    if "policy_source" in row and row["policy_source"] not in ("online", "swa"):
+        raise ValueError(f"{source} policy_source must be online or swa")
     for field, value in row.items():
-        if field in {"method", "schema"}:
+        if field in {"method", "schema", "policy_source"}:
             continue
         if isinstance(value, bool):
             raise ValueError(f"{source} {field} must not be boolean")
@@ -87,7 +91,7 @@ def _parse_csv_row(raw, fieldnames, row_number, path):
     row = {}
     for field in fieldnames:
         value = raw[field]
-        if field in {"method", "schema"}:
+        if field in {"method", "schema", "policy_source"}:
             if not value:
                 raise ValueError(f"{path} row {row_number} {field} is empty")
             row[field] = value
@@ -132,7 +136,7 @@ def _load_metrics_csv(path):
     for row in rows[1:]:
         if tuple(row[field] for field in ("method", "schema", "dataset", "seed")) != identity:
             raise ValueError(f"{path} contains mixed run identities")
-    return rows[-1]
+    return average_random_rows(rows) if rows[0]["method"] == "random" else rows[-1]
 
 
 def main():

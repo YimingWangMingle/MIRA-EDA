@@ -1,11 +1,11 @@
 import csv
+import time
 import random
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 
-from .avp_loader import avp_manifest
 from .env import make_env
 from .evaluate import (
     evaluate_policy,
@@ -14,19 +14,16 @@ from .evaluate import (
     write_metrics_csv,
 )
 from .rollout_pool import PersistentRolloutExecutor
-from .schedule import runtime_args, training_schedule
 from .swa import RunningWeightAverage
+from atena_common.costs import QueryCosts, write_costs
 
 
 METHOD = "MIRA"
 FORMAL_METRICS_FILE = "eval_metrics.csv"
-ONLINE_METRICS_FILE = "eval_metrics_online.csv"
 FORMAL_FINAL_FILE = "final_metrics.json"
-ONLINE_FINAL_FILE = "final_metrics_online.json"
 FORMAL_POLICY_FILE = "policy.weights.h5"
 ONLINE_POLICY_FILE = "policy.online.weights.h5"
 FORMAL_ACTION_PREFIX = "actions_steps"
-ONLINE_ACTION_PREFIX = "actions_online_steps"
 TRAIN_LOG_FIELDS = (
     "update",
     "steps",
@@ -36,7 +33,6 @@ TRAIN_LOG_FIELDS = (
     "mira_lr",
     "alpha",
     "entropy_coef",
-    "auxiliary_reward_scale",
     "swa_count",
     "swa_active",
     "policy_loss",
@@ -45,6 +41,10 @@ TRAIN_LOG_FIELDS = (
     "phi_loss",
     "dyn_loss",
     "metric_target",
+    "analytical_distance",
+    "successor_distance",
+    "representation_updates",
+    "raw_directional_reward",
 )
 
 
@@ -96,6 +96,7 @@ def _validate_runtime(args):
 
 
 def _run_experiment(args, rollout_executor):
+    training_started = time.perf_counter()
     random.seed(args.seed)
     np.random.seed(args.seed)
 
@@ -105,12 +106,10 @@ def _run_experiment(args, rollout_executor):
         / "{}{}".format(args.schema, int(args.dataset_number))
         / "seed{}".format(int(args.seed))
     )
-    result_dir.mkdir(parents=True, exist_ok=True)
+    # This runner starts fresh and must never mix existing run artifacts.
+    result_dir.mkdir(parents=True, exist_ok=False)
     write_json(result_dir / "config.json", vars(args))
-    write_json(
-        result_dir / "avp_manifest.json",
-        avp_manifest(args.schema, args.dataset_number, args.avp),
-    )
+
 
     probe_env = make_env(args.schema, args.dataset_number, args.seed, args)
     state_dim = probe_env.state_dim
@@ -120,7 +119,7 @@ def _run_experiment(args, rollout_executor):
     from .models import MiraMetricModule, PolicyValueNet, sample_direction
 
     tf.random.set_seed(args.seed)
-    model = PolicyValueNet(state_dim, action_dim, hidden=args.hidden)
+    model = PolicyValueNet(state_dim, action_dim, hidden=args.hidden, latent_dim=args.mira_latent_dim)
     optimizer = tf.keras.optimizers.Adam(float(args.lr))
     mira = MiraMetricModule(
         state_dim=state_dim,
@@ -129,110 +128,94 @@ def _run_experiment(args, rollout_executor):
         hidden=args.mira_hidden,
         lr=args.mira_lr,
         tau=args.mira_tau,
+        statistic_indices=probe_env.statistic_indices,
+        lambda_ana=args.mira_lambda_ana, mc_samples=args.mira_mc_samples,
     )
     swa = RunningWeightAverage(start_fraction=args.swa_start)
-    formal_model = PolicyValueNet(state_dim, action_dim, hidden=args.hidden)
-    formal_model.set_weights(model.get_weights())
+    formal_model = PolicyValueNet(state_dim, action_dim, hidden=args.hidden, latent_dim=args.mira_latent_dim)
+    training_queries = QueryCosts()
 
     metrics_rows = []
-    online_metrics_rows = []
     train_log_path = result_dir / "train_log.csv"
     _init_train_log(train_log_path)
     steps_done = 0
     update_idx = 0
     rng = np.random.default_rng(args.seed + 20260627)
 
-    while steps_done < args.steps:
-        schedule = training_schedule(args, steps_done)
-        current_args = runtime_args(args, schedule)
-        _set_optimizer_lr(optimizer, schedule["policy_lr"])
-        _set_optimizer_lr(mira.encoder_opt, schedule["mira_lr"])
-        _set_optimizer_lr(mira.dynamics_opt, schedule["mira_lr"])
-
-        remaining = int(args.steps) - steps_done
-        rollout_count = min(
-            int(args.workers),
-            max(1, (remaining + args.episode_length - 1) // args.episode_length),
-        )
-        worker_args = build_worker_args(
-            args=args,
-            runtime_args=current_args,
-            policy_weights=model.get_weights(),
-            mira_weights=mira.get_weights(),
-            update_idx=update_idx,
-            rollout_count=rollout_count,
-            rng=rng,
-            direction_sampler=sample_direction,
-        )
-        rollouts = rollout_executor.map(worker_args)
-        batch = _merge_rollouts(rollouts)
-        steps_done += int(len(batch["rewards"]))
-        update_idx += 1
-
-        update_stats = _a3c_update(model, optimizer, batch, current_args)
-        progress = min(
-            max(float(steps_done) / max(float(args.steps), 1.0), 0.0),
-            1.0,
-        )
-        swa.update(model.get_weights(), progress)
-        mira_stats = mira.update(
-            batch["states"],
-            batch["actions"],
-            batch["task_rewards"],
-            batch["next_states"],
-            gamma=args.gamma,
-            beta_pe=args.mira_beta_pe,
-            metric_clip=args.mira_metric_clip,
-        )
-
-        _append_train_log(train_log_path, {
-            "update": update_idx,
-            "steps": steps_done,
-            "episode_reward": float(np.mean([
-                rollout["episode_reward"] for rollout in rollouts
-            ])),
-            "episode_task_reward": float(np.mean([
-                rollout["episode_task_reward"] for rollout in rollouts
-            ])),
-            "policy_lr": schedule["policy_lr"],
-            "mira_lr": schedule["mira_lr"],
-            "alpha": schedule["alpha"],
-            "entropy_coef": schedule["entropy_coef"],
-            "auxiliary_reward_scale": schedule["auxiliary_reward_scale"],
-            "swa_count": swa.count,
-            "swa_active": swa.active,
-            **update_stats,
-            **mira_stats,
-        })
-
-        if update_idx % max(1, int(args.eval_interval)) == 0 or steps_done >= args.steps:
-            formal_model.set_weights(swa.formal_weights(model.get_weights()))
-            formal_row = evaluate_policy(
-                current_args,
-                formal_model,
-                result_dir,
-                steps_done,
-                action_filename_prefix=FORMAL_ACTION_PREFIX,
+    from revision_support.mira_learner import RepresentationLearner
+    from revision_support.mira_core import RunningMoments
+    reward_moments = RunningMoments()
+    learner = RepresentationLearner(mira, capacity=args.mira_replay_buffer_size,
+        batch_size=args.mira_phi_batch_size, min_size=args.mira_min_replay_size, seed=args.seed, gamma=args.gamma)
+    try:
+        while steps_done < args.steps:
+            remaining = int(args.steps) - steps_done
+            rollout_count = min(
+                int(args.workers),
+                max(1, (remaining + args.episode_length - 1) // args.episode_length),
             )
-            online_row = evaluate_policy(
-                current_args,
-                model,
-                result_dir,
-                steps_done,
-                action_filename_prefix=ONLINE_ACTION_PREFIX,
+            worker_args = build_worker_args(
+                args=args,
+                runtime_args=args,
+                policy_weights=model.get_weights(),
+                mira_weights=dict(learner.weights(), reward_moments=reward_moments.state()),
+                update_idx=update_idx,
+                rollout_count=rollout_count,
+                rng=rng,
+                direction_sampler=sample_direction,
             )
-            metrics_rows.append(formal_row)
-            online_metrics_rows.append(online_row)
-            write_metrics_csv(result_dir / FORMAL_METRICS_FILE, metrics_rows)
-            write_metrics_csv(result_dir / ONLINE_METRICS_FILE, online_metrics_rows)
-            formal_model.save_weights(str(result_dir / FORMAL_POLICY_FILE))
-            model.save_weights(str(result_dir / ONLINE_POLICY_FILE))
+            rollouts = rollout_executor.map(worker_args)
+            for rollout in rollouts:
+                training_queries.add(rollout["query_costs"])
+            batch = _merge_rollouts(rollouts)
+            steps_done += int(len(batch["rewards"]))
+            update_idx += 1
+    
+            update_stats = _a3c_update(model, optimizer, batch, args)
+            # Average every eligible post-update snapshot by a predeclared rule.
+            # The online model remains the sole source for rollouts and gradients.
+            swa.update(model.get_weights(), steps_done / float(args.steps))
+            mira_stats = learner.submit(batch['states'], batch['actions'], batch['task_rewards'], batch['next_states'])
+            reward_moments.update(batch['raw_bonuses'])
+            mira_stats['metric_target'] = mira_stats['mean_metric_target']
+            mira_stats['raw_directional_reward'] = float(np.mean(batch['raw_bonuses']))
+    
+            _append_train_log(train_log_path, {
+                "update": update_idx,
+                "steps": steps_done,
+                "episode_reward": float(np.mean([
+                    rollout["episode_reward"] for rollout in rollouts
+                ])),
+                "episode_task_reward": float(np.mean([
+                    rollout["episode_task_reward"] for rollout in rollouts
+                ])),
+                "policy_lr": float(args.lr),
+                "mira_lr": float(args.mira_lr),
+                "alpha": float(args.alpha),
+                "entropy_coef": float(args.entropy_coef),
+                "swa_count": swa.count,
+                "swa_active": int(swa.active),
+                **update_stats,
+                **mira_stats,
+            })
+    
+            if update_idx % max(1, int(args.eval_interval)) == 0 or steps_done >= args.steps:
+                formal_model.set_weights(swa.formal_weights(model.get_weights()))
+                formal_row = evaluate_policy(args, formal_model, result_dir, steps_done)
+                formal_row.update(policy_source="swa" if swa.active else "online",
+                                  swa_count=swa.count)
+                metrics_rows.append(formal_row)
+                write_metrics_csv(result_dir / FORMAL_METRICS_FILE, metrics_rows)
+                formal_model.save_weights(str(result_dir / FORMAL_POLICY_FILE))
+    finally:
+        learner.close()
+    mira.reward_moments = reward_moments
+    mira.save_models(result_dir/'representation')
+    write_json(result_dir/'representation_training.json', learner.stats())
 
+    model.save_weights(str(result_dir / ONLINE_POLICY_FILE))
     write_json(result_dir / FORMAL_FINAL_FILE, formal_final_row(metrics_rows))
-    write_json(
-        result_dir / ONLINE_FINAL_FILE,
-        formal_final_row(online_metrics_rows),
-    )
+    write_costs(result_dir, metrics_rows, training_started, steps_done, training_queries)
     return metrics_rows
 
 
@@ -250,7 +233,7 @@ def rollout_worker(payload):
 
     _seed_rollout(worker_seed)
     env = make_env(args.schema, args.dataset_number, worker_seed, args)
-    model = PolicyValueNet(env.state_dim, env.action_dim, hidden=args.hidden)
+    model = PolicyValueNet(env.state_dim, env.action_dim, hidden=args.hidden, latent_dim=args.mira_latent_dim)
     model.set_weights(policy_weights)
     mira = MiraMetricModule(
         env.state_dim,
@@ -259,8 +242,11 @@ def rollout_worker(payload):
         hidden=args.mira_hidden,
         lr=args.mira_lr,
         tau=args.mira_tau,
+        statistic_indices=env.statistic_indices,
+        lambda_ana=args.mira_lambda_ana, mc_samples=args.mira_mc_samples,
     )
     mira.set_weights(mira_weights)
+    mira.begin_episode(moments=mira_weights.get('reward_moments'))
     return _run_rollout(args, direction, env, model, mira)
 
 
@@ -276,10 +262,13 @@ def _run_rollout(args, direction, env, model, mira):
     masks = []
     total_reward = 0.0
     total_task_reward = 0.0
+    policy_states = []
+    raw_bonuses = []
 
     while not done:
         state_array = np.asarray(state, dtype=np.float32).reshape(1, -1)
-        probs, value = model(state_array, training=False)
+        policy_state = np.concatenate([state_array[0], direction]).reshape(1, -1)
+        probs, value = model(policy_state, training=False)
         mask = env.legal_action_mask()
         policy = masked_probs(probs.numpy()[0], mask)
         action = int(np.random.choice(env.action_dim, p=policy))
@@ -293,6 +282,8 @@ def _run_rollout(args, direction, env, model, mira):
         reward = float(task_reward) + float(args.alpha) * float(mira_bonus)
 
         states.append(state)
+        policy_states.append(policy_state[0])
+        raw_bonuses.append(mira.last_raw_bonus)
         actions.append(action)
         rewards.append(reward)
         task_rewards.append(task_reward)
@@ -313,6 +304,8 @@ def _run_rollout(args, direction, env, model, mira):
     )
     return {
         "states": np.asarray(states, dtype=np.float32),
+        "policy_states": np.asarray(policy_states, dtype=np.float32),
+        "raw_bonuses": np.asarray(raw_bonuses, dtype=np.float32),
         "actions": np.asarray(actions, dtype=np.int64),
         "rewards": rewards_array,
         "task_rewards": np.asarray(task_rewards, dtype=np.float32),
@@ -322,12 +315,15 @@ def _run_rollout(args, direction, env, model, mira):
         "masks": np.asarray(masks, dtype=np.float32),
         "episode_reward": float(total_reward),
         "episode_task_reward": float(total_task_reward),
+        "query_costs": env.query_costs.snapshot(),
     }
 
 
 def _merge_rollouts(rollouts):
     keys = (
         "states",
+        "policy_states",
+        "raw_bonuses",
         "actions",
         "rewards",
         "task_rewards",
@@ -366,7 +362,7 @@ def _masked_probs_tf(probs, mask):
 def _a3c_update(model, optimizer, batch, args):
     import tensorflow as tf
 
-    states = tf.convert_to_tensor(batch["states"], dtype=tf.float32)
+    states = tf.convert_to_tensor(batch["policy_states"], dtype=tf.float32)
     actions = tf.convert_to_tensor(batch["actions"], dtype=tf.int32)
     returns = tf.convert_to_tensor(
         batch["returns"].reshape(-1, 1),
@@ -435,12 +431,6 @@ def _gae(rewards, values, gamma, gae_lambda):
     return advantages, advantages + values[:-1]
 
 
-def _set_optimizer_lr(optimizer, value):
-    learning_rate = optimizer.learning_rate
-    if hasattr(learning_rate, "assign"):
-        learning_rate.assign(float(value))
-    else:
-        optimizer.learning_rate = float(value)
 
 
 def _init_train_log(path):

@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
+from atena_common.costs import session_cost_row, write_costs, write_session
 from .env import make_env
 from .evaluate import official_metrics, write_json, write_metrics_csv
 
@@ -55,6 +56,8 @@ def run_greedy(args, result_dir: Path) -> List[Dict[str, object]]:
         args,
         reward_mode="official_compound",
     )
+    setup_seconds = time.perf_counter() - started
+    started = time.perf_counter()
     env.reset()
     done = False
     episode_reward = 0.0
@@ -70,8 +73,8 @@ def run_greedy(args, result_dir: Path) -> List[Dict[str, object]]:
         candidate_evaluations += int(evaluated)
 
     with _suppress_display_warnings():
-        metrics = official_metrics(args.schema, args.dataset_number, env.actions)
-    runtime_seconds = time.perf_counter() - started
+        metrics = session_cost_row(env, started, lambda: official_metrics(args.schema, args.dataset_number, env.actions))
+    runtime_seconds = setup_seconds + time.perf_counter() - started
     actions_repr = [repr(action) for action in env.actions]
     row = {
         "method": "greedy",
@@ -81,6 +84,8 @@ def run_greedy(args, result_dir: Path) -> List[Dict[str, object]]:
         "steps": 0,
         "episode": 0,
         "episode_reward": float(episode_reward),
+        "common_task_reward": float(episode_reward),
+        "session_setup_seconds": setup_seconds,
         "runtime_seconds": float(runtime_seconds),
         "candidate_evaluations": int(candidate_evaluations),
         **metrics,
@@ -88,4 +93,6 @@ def run_greedy(args, result_dir: Path) -> List[Dict[str, object]]:
     write_json(result_dir / "actions_steps0.json", actions_repr)
     write_metrics_csv(result_dir / "eval_metrics.csv", [row])
     write_json(result_dir / "final_metrics.json", row)
+    write_session(result_dir / "session_steps0.json", env.actions)
+    write_costs(result_dir, [row])
     return [row]

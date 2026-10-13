@@ -24,21 +24,27 @@ class StateEncoder:
         self.found_items_with_ratio = found_items_with_ratio if found_items_with_ratio is not None else {}
 
         self.set_description = ["item count"]
+        self.mira_descriptor = None
         for column in self.pipeline.exploration_columns:
             self.set_description.append(f"description {column}")
             self.set_description.append(f"distinct {column}")
             self.set_description.append(f"entropy {column}")
 
+    def enable_mira_descriptor(self):
+        from revision_support.mira_descriptors import GalaxyDescriptor
+        self.mira_descriptor = GalaxyDescriptor(self.pipeline)
+        self.set_description = list(self.mira_descriptor.names)
+
     def reset(self):
         self.found_items_with_ratio = {}
 
-    def encode_datasets(self, datasets: List[Dataset], parent_dataset: Dataset = None):
+    def encode_datasets(self, datasets: List[Dataset], parent_dataset: Dataset = None, get_reward=True):
         encoded_sets = []
         total_extrinsic_reward = 0.0
         total_interestingness_reward = 0.0
 
         for dataset in datasets:
-            encoded_set, r_ext, r_int_js = self.encode_dataset(dataset, parent_dataset)
+            encoded_set, r_ext, r_int_js = self.encode_dataset(dataset, parent_dataset, get_reward=get_reward)
             encoded_sets.extend(encoded_set)
             total_extrinsic_reward += r_ext
             total_interestingness_reward += r_int_js
@@ -51,7 +57,7 @@ class StateEncoder:
 
         return encoded_sets, total_extrinsic_reward, total_interestingness_reward
 
-    def encode_dataset(self, dataset: Dataset, parent_dataset: Dataset = None, get_reward=True):
+    def encode_dataset(self, dataset: Dataset, parent_dataset: Dataset = None, get_reward=True, get_interestingness=None):
         encoded_set = []
         r_ext = 0.0
         r_int_js = 0.0
@@ -98,7 +104,9 @@ class StateEncoder:
                 self.found_items_with_ratio.update(ratio_item_dict)
 
         # 保留优化版内部奖励（JS divergence）
-        if parent_dataset is not None and not parent_dataset.data.empty and not data.empty:
+        if get_interestingness is None:
+            get_interestingness = get_reward
+        if get_interestingness and parent_dataset is not None and not parent_dataset.data.empty and not data.empty:
             divergence_sum = 0.0
             valid_dims = 0
             for dim in self.pipeline.exploration_columns:
@@ -124,6 +132,9 @@ class StateEncoder:
                 compactness_weight = max(0.0, 1.0 - abs(ratio - 0.5) * 2.0)
                 r_int_js = float(avg_divergence * compactness_weight)
 
+        if self.mira_descriptor is not None:
+            return self.mira_descriptor.encode(dataset).tolist(), r_ext, r_int_js
+
         # 状态提取
         encoded_set.append(float(np.log10(len(data) + 1)))
         for dimension in self.pipeline.exploration_columns:
@@ -135,6 +146,6 @@ class StateEncoder:
 
             encoded_set.append(float(np.log10(data[dimension].nunique() + 1)))
             counts = data[dimension].value_counts()
-            encoded_set.append(float(entropy(counts) if not counts.empty else 0.0))
+            encoded_set.append(float(entropy(counts) if not counts.empty and counts.sum() > 0 else 0.0))
 
         return encoded_set, r_ext, r_int_js

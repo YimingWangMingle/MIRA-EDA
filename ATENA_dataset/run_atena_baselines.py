@@ -26,7 +26,7 @@ def parse_args(argv=None):
     parser.add_argument("--output_dir", type=str, default="results")
 
     parser.add_argument("--max_terms_per_column", type=int, default=10)
-    parser.add_argument("--reward_mode", type=str, default="compound")
+    parser.add_argument("--reward_mode", type=str, default="official_compound")
     parser.add_argument("--w_interestingness", type=float, default=1.0)
     parser.add_argument("--w_diversity", type=float, default=2.0)
     parser.add_argument("--w_coherency", type=float, default=1.0)

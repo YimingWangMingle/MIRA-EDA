@@ -1,143 +1,85 @@
-# MIRA Exploration
+# MIRA
 
-This repository is the minimal reproduction package for MIRA across SDSS
-Galaxy target discovery, UCI Covertype target discovery, and the official
-ATENA A-EDA benchmark. Generated results, checkpoints, plots, tests, and paper
-sources are intentionally excluded.
+We provide our code and data for Galaxy, Covertype, and the ATENA benchmark (four Cyber and four Flights datasets). We include the fixed targets, indexes, and preprocessing caches needed to run the experiments. Results, trained models, and fitted PCA projections are generated during a run.
 
-## Methods
+## Setup
 
-| Task | MIRA | Comparison methods |
-| --- | --- | --- |
-| Galaxy | MIRA; no-extrinsic ablation via `--w_ext 0` | Random, Pure A3C, DORA, Greedy EDA, ATENA-style, ATENA-style + extrinsic reward |
-| Covertype | `mira`; `mira_no_ext` | Random, Pure A3C, DORA, Greedy EDA, ATENA-style, ATENA-style + extrinsic reward |
-| Official ATENA | MIRA  | Official ATENA, Random, Greedy, DORA, Pure A3C |
-
-Target-discovery learning methods that consume the common target-aware signal use `w_ext=8`: MIRA, Pure A3C, and ATENA-style + extrinsic reward. DORA retains its original `75FAM-25CUR` reward.
-
-## Layout
-
-```text
-app/pipelines/                  Galaxy data and set operators
-app/data/sdss/                 Galaxy metadata and split dataset archive
-rl/A3C_2_actors/               Galaxy MIRA implementation
-rl/targets/                     Fixed Galaxy targets for seeds 1-3
-baselines/                      Galaxy baselines and shared Greedy policy
-covertype-exploration/          Covertype environment, methods, and downloader
-ATENA_dataset/MIRA/             MIRA for the official ATENA benchmark
-ATENA_dataset/atena_baselines/  ATENA comparison methods
-ATENA_dataset/ATENA-A-EDA/      Pinned official benchmark submodule
-```
-
-Clone with the official ATENA dependency:
+We use Linux and Python 3.9 for Galaxy and Covertype. We split the compressed Galaxy CSV into two files to meet GitHub's file-size limit. From the repository root, we restore it once:
 
 ```bash
-git clone --recurse-submodules https://github.com/moyueming/MIRA-exploration.git
-cd MIRA-exploration
+if [ ! -f app/data/sdss/galaxies.csv ]; then
+  cat app/data/sdss/galaxies.csv.gz.part* | gzip -dc > app/data/sdss/galaxies.csv.tmp &&
+    mv app/data/sdss/galaxies.csv.tmp app/data/sdss/galaxies.csv
+fi
 ```
 
-For an existing clone, run `git submodule update --init --recursive`.
+We then install the dependencies and check the package:
+
+```bash
+python3.9 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -B verify.py --runtime
+```
+
+The check covers dependencies, file hashes, data, caches, command arguments, and model updates. No data download or preprocessing is required.
 
 ## Galaxy
 
-Install with Python 3.8 or 3.9:
+We first check a short MIRA run, then run all methods:
 
 ```bash
-python -m pip install -r requirements.txt
-```
-
-The SDSS CSV is distributed as six archive parts. Expected SHA-256 values:
-
-```text
-galaxies.tar.gz.aa  b8733cb51e54108687888be55eb700eb1402790958492cf351d5a2747813a689
-galaxies.tar.gz.ab  b55600e3aa09d6ef1154a096d97111a96010663063cd349da4d29606ad78a9f1
-galaxies.tar.gz.ac  fa381d4240a99b6f92c6aec7da5b93129365f6af9e29e59b9fc90ea8fb4c6a8b
-galaxies.tar.gz.ad  fb7baa46fe8943685cb3c859ed78c4aa580eac7e25941a53067ab90e58a3df41
-galaxies.tar.gz.ae  c92bad1646e3ed8610af781cee83271b2282551615c4a2cc89623fa8d857083e
-galaxies.tar.gz.af  28b409606489aa1c85f4fc6250701323b6697ad91930be16c7b98c9017d8f012
-```
-
-Linux/macOS reconstruction:
-
-```bash
-cd app/data/sdss
-cat galaxies.tar.gz.a{a,b,c,d,e,f} > galaxies.tar.gz
-tar -xzf galaxies.tar.gz
-cd ../../..
-```
-
-Windows PowerShell reconstruction:
-
-```powershell
-cd app\data\sdss
-cmd /c copy /b galaxies.tar.gz.aa+galaxies.tar.gz.ab+galaxies.tar.gz.ac+galaxies.tar.gz.ad+galaxies.tar.gz.ae+galaxies.tar.gz.af galaxies.tar.gz
-tar -xzf galaxies.tar.gz
-cd ..\..\..
-```
-
-Expected reconstructed hashes:
-
-```text
-galaxies.tar.gz  ee8fdbf5b5a96a8536889b61d4b6d8df9ad85619e8141e1529c3c3fa4a7613e8
-galaxies.csv     4a8af7c032745039e43fd7dd3abf2720da84a021e3f81c6e67f2e0d970f2e072
-```
-
-Example runs:
-
-```bash
-python RL-launcher.py --mode scattered --target_set fixed_seed_1 --workers 12 --name galaxy_mira_seed1
-python RL-launcher.py --mode scattered --target_set fixed_seed_1 --workers 12 --w_ext 0 --name galaxy_mira_no_ext_seed1
-python RL-launcher-pure-a3c.py --mode scattered --target_set fixed_seed_1 --workers 12 --name galaxy_pure_a3c_seed1
-python RL-launcher-paper-a3c.py --mode scattered --target_set fixed_seed_1 --workers 12 --name galaxy_dora_seed1
-python RL-launcher-atena-style.py --mode scattered --target_set fixed_seed_1 --workers 12 --name galaxy_atena_style_seed1
-python RL-launcher-atena.py --mode scattered --target_set fixed_seed_1 --workers 12 --name galaxy_atena_ext_seed1
-python RL-launcher-greedy-eda.py --mode scattered --target_set fixed_seed_1 --seed 1 --workers 12 --episodes 1000 --steps 250 --output_prefix outputs/GreedyEDA/seed1
-python RL-launcher-random-baseline.py --mode scattered --target_set fixed_seed_1 --seed 1 --episodes 1000 --steps 250
+python -B run.py --dataset galaxy --method mira --seeds 1 --smoke --execute
+python -B run.py --dataset galaxy --method all --execute
 ```
 
 ## Covertype
 
-The raw CSV is downloaded locally from the official UCI archive:
+We use the same runner and training budget:
 
 ```bash
-cd covertype-exploration
-python -m pip install -r requirements.txt
-python scripts/download_covertype.py
+python -B run.py --dataset covertype --method mira --seeds 1 --smoke --execute
+python -B run.py --dataset covertype --method all --execute
 ```
 
-Source: `https://archive.ics.uci.edu/static/public/31/covertype.zip`
+For each dataset, we run MIRA, seven comparison methods, and seven replacement ablations on fixed target seeds 1, 2, and 3: 45 runs per dataset. Each full run uses 1,000 episodes of 250 steps with 14 workers and one numerical thread per process. The target seeds define different target tasks. Asynchronous training is not bitwise deterministic.
 
-Expected `covertype.csv` SHA-256:
-`a07902ee1c9d3231c6655f23e6f75a6797d0ba26a2359f533c2c0e65d05c9bd4`.
+We use `--method baselines` or `--method ablations` to run either group, or a method ID from [protocol.json](protocol.json) to run one method. Omitting `--execute` prints the commands. PCA uses the first 16 episodes for collection and fitting, then trains for the remaining 984 episodes within the same budget.
 
-Example runs:
+We write full runs to `runs/`, short checks to `smoke_runs/`, and resource measurements to the corresponding `cost/` directory. `--output /path/to/new_runs` changes the output location. Each run requires a fresh output directory.
 
-```bash
-python run_full_a3c.py --baseline mira --target_set fixed_seed_1 --seed 1 --workers 12 --output_prefix mira_seed1
-python run_full_a3c.py --baseline pure_a3c --target_set fixed_seed_1 --seed 1 --workers 12 --output_prefix pure_a3c_seed1
-```
+## ATENA
 
-See `covertype-exploration/README.md` for all method and preprocessing options.
+We compare MIRA, Official ATENA, PureA3C, DORA, Greedy, and Random across all eight datasets. We do not run replacement ablations on this benchmark.
 
-## Official ATENA
-
-The official repository is pinned as a submodule at commit
-`8428c48011dbf2f7f04f3ffded917038e4670657`. It supplies the four Cyber and
-four Flights datasets, simulator, references, and evaluation metrics. Netflix
-is not part of the paper protocol.
+From the repository root, we set up the TensorFlow environment, check one dataset, and run our methods:
 
 ```bash
 cd ATENA_dataset
-bash scripts/setup_venv.sh
+PYTHON_BIN=python3.9 bash scripts/setup_venv.sh
 source .venv/bin/activate
-python MIRA/run.py --schema cyber --dataset_number 1 --workers 16 --seed 0 --steps 1000000 --avp 0
-python run_atena_baselines.py --method pure_a3c --schema cyber --dataset_number 1 --workers 16 --seed 0 --steps 1000000
+python MIRA/run.py --schema cyber --dataset_number 1 --workers 2 --steps 24 --eval_interval 1 --output_dir results/smoke
+SEED=0 WORKERS=16 STEPS=1000000 bash MIRA/scripts/run_all.sh
+SEED=0 WORKERS=16 STEPS=1000000 bash scripts/run_baselines.sh
 ```
 
-The released MIRA parser rejects AVP values other than `0`; the AVP module and
-AVP-enabled variant are not included.
+We retain the official ATENA implementation and data. Its original dependency stack needs a separate Python 3.8 environment. Continuing from `ATENA_dataset/`:
 
-## Generated Files
+```bash
+PYTHON_BIN=python3.8 bash scripts/setup_official_atena_venv.sh
+source ATENA-A-EDA/atena-basic/.venv-official-atena/bin/activate
+SEED=0 NUM_ENVS=16 STEPS=1000000 bash scripts/run_official_atena_template.sh
+SEED=0 CHECKPOINT_STEP=1000000_finish bash scripts/evaluate_official_atena_batch.sh
+```
 
-Training writes to `outputs/`, `saved_models/`, Covertype `preprocessed/`, and
-`ATENA_dataset/results/`. These paths are ignored and must not be committed.
+We then return to our environment and compute the final corpus metrics and cost summaries:
+
+```bash
+source .venv/bin/activate
+python scripts/recalculate_baselines.py --results_dir results --seed 0
+python scripts/summarize_costs.py --root results --seed 0
+```
+
+We use seed 0 by default and record actual interaction counts after whole-episode rounding. Each episode has 12 actions. Random reports the mean of 16 evaluation sessions. MIRA uses policy weight averaging from 40% of training onward. Results and checkpoints are written under `ATENA_dataset/results/`.
+
+We record the fixed settings in [protocol.json](protocol.json) and file hashes in [manifest.json](manifest.json). The shared MIRA core is in `revision_support/`; dataset adapters remain in their respective directories. This release covers the algorithm core; shared query caching and batch scheduling are not implemented.

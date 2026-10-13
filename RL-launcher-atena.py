@@ -1,3 +1,7 @@
+from revision_support.training_runtime import configure_training_threads
+
+configure_training_threads()
+
 import ray
 from app.pipelines.pipeline_precalculated_sets import PipelineWithPrecalculatedSets
 from baselines.atena.A3C_2_actors.A3C import Agent

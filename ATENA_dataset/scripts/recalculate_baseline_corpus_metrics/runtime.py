@@ -62,17 +62,6 @@ def reconstruct_mira_session(result_dir, env_factory=None, model_factory=None):
 
     result_dir = Path(result_dir)
     args = load_result_config(result_dir / "config.json")
-    args.avp = "1" if getattr(args, "official_reference_terms", False) else getattr(args, "avp", "0")
-    args.w_column_coverage = getattr(
-        args, "w_column_coverage", getattr(args, "w_v3_column_coverage", 0.35)
-    )
-    args.w_group_coverage = getattr(
-        args, "w_group_coverage", getattr(args, "w_v3_group_coverage", 0.30)
-    )
-    args.w_structure = getattr(
-        args, "w_structure", getattr(args, "w_v3_structure", 0.25)
-    )
-
     env_factory = env_factory or _default_mira_env_factory
     if model_factory is None:
         from .policy import NumpyPolicyValueNet

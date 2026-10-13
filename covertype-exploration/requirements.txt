@@ -1,4 +1,0 @@
-numpy
-pandas
-tensorflow==2.9.0
-ray==2.9.0

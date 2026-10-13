@@ -19,6 +19,7 @@ def calculate_deterministic(
     saved_by_key,
     single_metric,
     corpus_metric,
+    seed=0,
 ):
     ordered_sessions(sessions)
     validate_dataset_keys(saved_by_key)
@@ -28,7 +29,7 @@ def calculate_deterministic(
         expected = saved_by_key[key]
         observed = single_metric(key, sessions[key])
         validate_metric_row(expected, observed, f"{method}/{key[0]}{key[1]}")
-        row = _detail_row(method, key, expected)
+        row = _detail_row(method, key, expected, seed)
         detail.append(row)
         saved_rows.append(expected)
     summary = {
@@ -43,10 +44,11 @@ def calculate_recomputed_deterministic(
     sessions,
     single_metric,
     corpus_metric,
+    seed=0,
 ):
     ordered_sessions(sessions)
     detail = [
-        _detail_row(method, key, single_metric(key, sessions[key]))
+        _detail_row(method, key, single_metric(key, sessions[key]), seed)
         for key in sorted(EXPECTED_DATASETS)
     ]
     scalar_metrics = mean_metric_rows(detail)
@@ -67,6 +69,7 @@ def calculate_random(
     saved_by_key,
     single_metric,
     corpus_metric,
+    seed=0,
 ):
     validate_dataset_keys(sessions_by_key)
     validate_dataset_keys(saved_by_key)
@@ -79,7 +82,7 @@ def calculate_random(
         )
     detail = []
     for key in sorted(EXPECTED_DATASETS):
-        detail.append(_detail_row("random", key, mean_metric_rows(saved_by_key[key])))
+        detail.append(_detail_row("random", key, mean_metric_rows(saved_by_key[key]), seed))
     corpus_rows = []
     for episode in range(16):
         episode_sessions = {
@@ -111,6 +114,7 @@ def calculate_recomputed_random(
     sessions_by_key,
     single_metric,
     corpus_metric,
+    seed=0,
 ):
     validate_dataset_keys(sessions_by_key)
     counts = {len(sessions_by_key[key]) for key in EXPECTED_DATASETS}
@@ -145,7 +149,7 @@ def calculate_recomputed_random(
         )
 
     detail = [
-        _detail_row("random", key, mean_metric_rows(observed_by_key[key]))
+        _detail_row("random", key, mean_metric_rows(observed_by_key[key]), seed)
         for key in sorted(EXPECTED_DATASETS)
     ]
     summary = {
@@ -155,11 +159,11 @@ def calculate_recomputed_random(
     return detail, summary
 
 
-def _detail_row(method, key, metrics):
+def _detail_row(method, key, metrics, seed=0):
     return {
         "method": method,
         "schema": key[0],
         "dataset": key[1],
-        "seed": 0,
+        "seed": int(seed),
         **{name: float(metrics[name]) for name in METRICS},
     }

@@ -9,8 +9,8 @@ from covertype_rl.full_a3c import build_parser, run
 
 def main():
     parser = build_parser()
+    parser.set_defaults(baseline="atena")
     args = parser.parse_args()
-    args.baseline = "atena"
     paths = run(args)
     print("Wrote:")
     for key, path in paths.items():

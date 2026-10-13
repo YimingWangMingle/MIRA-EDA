@@ -9,20 +9,25 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-import numpy as np
-
-
 COVERTYPE_ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 for import_root in (COVERTYPE_ROOT, REPOSITORY_ROOT):
     if str(import_root) not in sys.path:
         sys.path.insert(0, str(import_root))
 
+from revision_support.covertype_defaults import configure_covertype_runtime
+
+configure_covertype_runtime()
+
+import numpy as np
+from covertype_rl.candidates import build_candidate_view
+
 from baselines.greedy_eda.covertype import (
     WorkerExplorationMemory,
     choose_count_balanced_candidate,
 )
 from baselines.greedy_eda.policy import Candidate, choose_operation
+from revision_support.resources import flush_events
 
 
 REWARD_HEADER = [
@@ -160,122 +165,10 @@ def execute_selected_step(env, action_id):
     return env.step(int(action_id))
 
 
-def _candidate_groups(universe, actions, set_id):
-    set_id = int(set_id)
-    row = np.asarray(universe.graph[set_id], dtype=np.int64)
-    grouped = {}
-    family_by_set = {}
-    for action_id, next_set_id in enumerate(row.tolist()):
-        next_set_id = int(next_set_id)
-        if next_set_id == set_id:
-            continue
-        grouped.setdefault(next_set_id, []).append(int(action_id))
-        family_by_set.setdefault(next_set_id, set()).add(
-            str(actions[action_id].family)
-        )
-    return list(grouped), grouped, family_by_set
 
 
-def _select_candidate_set_ids(
-    universe,
-    all_candidate_set_ids,
-    family_by_set,
-    reference_set_size,
-    candidate_slots,
-):
-    if len(all_candidate_set_ids) <= int(candidate_slots):
-        return [int(set_id) for set_id in all_candidate_set_ids]
-
-    selected = []
-    selected_set = set()
-
-    def add(set_id):
-        set_id = int(set_id)
-        if set_id in selected_set or len(selected) >= int(candidate_slots):
-            return False
-        selected.append(set_id)
-        selected_set.add(set_id)
-        return True
-
-    for family in OPERATOR_FAMILIES:
-        family_candidates = [
-            int(set_id)
-            for set_id in all_candidate_set_ids
-            if family in family_by_set.get(int(set_id), set())
-        ]
-        if not family_candidates:
-            continue
-        family_candidates.sort(
-            key=lambda set_id: (
-                abs(
-                    np.log1p(float(universe.size_for_set(set_id)))
-                    - np.log1p(float(reference_set_size))
-                ),
-                int(set_id),
-            )
-        )
-        add(family_candidates[0])
-
-    remaining = [
-        int(set_id)
-        for set_id in all_candidate_set_ids
-        if int(set_id) not in selected_set
-    ]
-    remaining.sort(
-        key=lambda set_id: (float(universe.size_for_set(set_id)), int(set_id))
-    )
-    if remaining:
-        quantile_indices = np.linspace(
-            0,
-            len(remaining) - 1,
-            max(1, int(candidate_slots) - len(selected)),
-        )
-        for index in quantile_indices.round().astype(int).tolist():
-            add(remaining[int(index)])
-
-    if len(selected) < int(candidate_slots):
-        selected_states = [universe.state_for_set(set_id) for set_id in selected]
-        leftovers = [set_id for set_id in remaining if set_id not in selected_set]
-        while leftovers and len(selected) < int(candidate_slots):
-            if not selected_states:
-                add(leftovers.pop(0))
-                selected_states.append(universe.state_for_set(selected[-1]))
-                continue
-            best_position = 0
-            best_distance = -1.0
-            for position, set_id in enumerate(leftovers):
-                state = universe.state_for_set(set_id)
-                distance = min(
-                    float(np.linalg.norm(state - existing))
-                    for existing in selected_states
-                )
-                if distance > best_distance:
-                    best_distance = distance
-                    best_position = position
-            chosen = leftovers.pop(best_position)
-            if add(chosen):
-                selected_states.append(universe.state_for_set(chosen))
-    return selected
 
 
-def build_candidate_view(universe, actions, current_set_id, candidate_slots=10):
-    all_set_ids, grouped, family_by_set = _candidate_groups(
-        universe,
-        actions,
-        current_set_id,
-    )
-    selected = _select_candidate_set_ids(
-        universe,
-        all_set_ids,
-        family_by_set,
-        reference_set_size=universe.size_for_set(current_set_id),
-        candidate_slots=candidate_slots,
-    )
-    action_ids = [list(grouped[int(set_id)]) for set_id in selected]
-    while len(selected) < int(candidate_slots):
-        selected.append(-1)
-        action_ids.append([])
-    return selected[: int(candidate_slots)], action_ids[: int(candidate_slots)]
 
 
 def episode_ranges(total_episodes, workers):
@@ -297,6 +190,11 @@ def build_context(args):
     from covertype_rl.fixed_sets import load_fixed_universe
     from covertype_rl.greedy_preprocessing import validate_official_greedy_preprocessing
     from covertype_rl.targets import load_target_items
+    from covertype_rl.cache_contract import validate_cache
+
+    if getattr(args, '_validated_cache', None) is not None:
+        directory, target_items, metadata = args._validated_cache
+        return build_action_space(10, 10), load_fixed_universe(directory), Path(directory), target_items, metadata
 
     actions = build_action_space(n_continuous=10, n_bins=10)
     contract = validate_official_greedy_preprocessing(
@@ -310,7 +208,10 @@ def build_context(args):
     if not target_path.is_file():
         raise FileNotFoundError(f"Missing fixed target set: {target_path}")
     target_items = load_target_items(target_path)
-    universe = load_fixed_universe(contract.universe_dir)
+    universe = validate_cache(contract.universe_dir, COVERTYPE_ROOT / 'covertype.csv', target_path,
+                              [action.label for action in actions],
+                              dict(seed=int(args.seed), requested_sets=100000, min_set_size=10,
+                                   max_set_size=200000, n_bins=10))
     root_targets = sorted(
         map(int, universe.targets_for_set(int(universe.metadata["root_set_id"])))
     )
@@ -318,6 +219,7 @@ def build_context(args):
         raise ValueError(
             "Fixed preprocessing root targets do not match the fixed target JSON"
         )
+    args._validated_cache = (str(contract.universe_dir), target_items, contract.metadata)
     return actions, universe, contract.universe_dir, target_items, contract.metadata
 
 
@@ -495,6 +397,7 @@ def run_worker(worker_args):
                 "set_ids": sorted(episode_set_ids),
             }
         )
+        flush_events()
         print(
             f"EP{episode} greedy_eda worker{worker_id} | "
             f"Ext_R: {totals['extrinsic_reward']:.6f} | "
@@ -653,16 +556,17 @@ def run(args):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(
+    from revision_support.covertype_defaults import CovertypeArgumentParser
+    parser = CovertypeArgumentParser(
         description="Run target-blind Greedy EDA on the fixed Covertype graph."
     )
     parser.add_argument("--baseline", choices=["greedy_eda"], default="greedy_eda")
-    parser.add_argument("--target_set", default="fixed_seed_1")
+    parser.add_argument("--target_set", default=None)
     parser.add_argument("--episodes", type=int, default=1000)
     parser.add_argument("--steps", type=int, default=250)
-    parser.add_argument("--workers", type=int, default=12)
+    parser.add_argument("--workers", type=int, default=14)
     parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--preprocess_name", required=True)
+    parser.add_argument("--preprocess_name", default=None)
     parser.add_argument("--candidate_slots", type=int, default=10)
     parser.add_argument("--selection_top_k", type=int, default=3)
     parser.add_argument("--output_prefix", default=None)

@@ -14,10 +14,10 @@ def _ensure_pure_a3c_registered():
 
     original_training_reward = full_a3c._training_reward
 
-    def training_reward(baseline, r_ext, r_int, counter_curiosity, r_coh, r_div, bile_bonus, args):
+    def training_reward(baseline, r_ext, r_int, counter_curiosity, r_coh, r_div, mira_bonus, args):
         if baseline == "pure_a3c":
             return float(args.w_ext) * float(r_ext)
-        return original_training_reward(baseline, r_ext, r_int, counter_curiosity, r_coh, r_div, bile_bonus, args)
+        return original_training_reward(baseline, r_ext, r_int, counter_curiosity, r_coh, r_div, mira_bonus, args)
 
     full_a3c._training_reward = training_reward
 
@@ -25,9 +25,8 @@ def _ensure_pure_a3c_registered():
 def main():
     _ensure_pure_a3c_registered()
     parser = full_a3c.build_parser()
-    parser.set_defaults(w_ext=8.0)
+    parser.set_defaults(baseline="pure_a3c", w_ext=2.0)
     args = parser.parse_args()
-    args.baseline = "pure_a3c"
     paths = full_a3c.run(args)
     print("Wrote:")
     for key, path in paths.items():

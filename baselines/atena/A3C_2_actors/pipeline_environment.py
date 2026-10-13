@@ -14,6 +14,8 @@ from app.pipelines.pipeline_precalculated_sets import PipelineWithPrecalculatedS
 from .state_encoder import StateEncoder
 from .target_set_generator import TargetSetGenerator
 from .action_manager import ActionManager
+from revision_support.resources import flush_events, query_step
+from revision_support.galaxy_execution import execute_galaxy_operator
 
 
 class PipelineEnvironment(gym.Env):
@@ -157,6 +159,7 @@ class PipelineEnvironment(gym.Env):
                 self.visited_set_state_rows[set_id] = row["state"]
 
     def consume_exploration_logs(self):
+        flush_events()
         trace_rows = list(self.exploration_trace_rows)
         state_rows = [
             {"set_id": set_id, "state": state}
@@ -218,6 +221,7 @@ class PipelineEnvironment(gym.Env):
         probs = self.fix_possible_operation_action_probs(set_index, [1.0/self.operation_action_space.n]*self.operation_action_space.n)
         return np.random.choice(self.operation_action_space.n, p=probs)
 
+    @query_step
     def step(self, set_action, operation_action):
         self.step_count += 1
         set_action_array = self.action_manager.set_action_types[operation_action].split("-&-")
@@ -230,38 +234,22 @@ class PipelineEnvironment(gym.Env):
             set_index = set_action
 
         original_datasets = self.datasets
-
-        # ==========================================
-        # 【算子修复】：API 命名已根据 grep 结果完美对齐
-        # ==========================================
         try:
-            if set_action_array[0] == "by_superset":
-                result = self.pipeline.by_superset(self.input_set)
-                self.datasets = result if isinstance(result, list) else [result]
+            returned_datasets = execute_galaxy_operator(
+                self.pipeline, self.input_set,
+                self.action_manager.set_action_types[operation_action])
+        except Exception as error:
+            raise RuntimeError(
+                f"Galaxy operator failed: worker={self.agentId}, step={self.step_count}, "
+                f"action={self.action_manager.set_action_types[operation_action]}, "
+                f"input_set_id={self.input_set.set_id}"
+            ) from error
 
-            elif set_action_array[0] == "by_facet":
-                # 【核心修复】：包装成 List，防止 len() 错误计算字符串长度
-                result = self.pipeline.by_facet(self.input_set, [set_action_array[1]], self.pipeline.discrete_categories_count)
-                self.datasets = result if isinstance(result, list) else [result]
-
-            elif set_action_array[0] == "by_neighbors":
-                # 同理，by_neighbors 也需要接受 List 类型的 attributes
-                result = self.pipeline.by_neighbors(self.input_set, [set_action_array[1]])
-                self.datasets = result if isinstance(result, list) else [result]
-
-            elif set_action_array[0] == "by_distribution":
-                result = self.pipeline.by_distribution(self.input_set)
-                self.datasets = result if isinstance(result, list) else [result]
-
-        except Exception as e:
-            # 依然保留这把“保护伞”，以防万一原作者的代码还需要额外参数
-            if random.random() < 0.05: 
-                print(f"\n[算子底层报错] 动作: {set_action_array[0]} | 错误真凶: {repr(e)}")
-            self.datasets = original_datasets
-
+        self.datasets = returned_datasets
         done = self.step_count >= self.episode_steps
         if len(self.datasets) == 0:
             self.datasets = original_datasets
+            self.latest_dataset_state_rows = []
             r_ext, r_int_js = 0.0, 0.0
         else:
             result_set_ids = set(map(lambda x: x.set_id, self.datasets))
@@ -277,11 +265,22 @@ class PipelineEnvironment(gym.Env):
             "input_set_id": self.input_set.set_id if self.input_set.set_id != None else -1,
             "operator": set_action_array[0],
             "parameter": set_action_array[1] if len(set_action_array) > 1 else None,
-            "output_set_count": len(self.datasets),
-            "output_set_average_size": sum(map(lambda x: len(x.data), self.datasets))/len(self.datasets) if len(self.datasets)>0 else 0,
+            "output_set_count": len(returned_datasets),
+            "output_set_average_size": sum(len(x.data) for x in returned_datasets)/len(returned_datasets) if returned_datasets else 0,
             "reward_extrinsic": r_ext,
             "reward_intrinsic_js": r_int_js,
             "sets_viewed": len(self.sets_viewed)
         })
-        self._record_exploration_step(r_ext, r_int_js, set_action_array, set_index, operation_action)
+        if returned_datasets:
+            self._record_exploration_step(r_ext, r_int_js, set_action_array, set_index, operation_action)
+        else:
+            # Log the attempted step without re-counting old results as visited.
+            self.exploration_trace_rows.append({
+                "agent_id": int(self.agentId), "step": int(self.step_count),
+                "set_id": -1, "step_extrinsic_reward": 0.0,
+                "step_interestingness": 0.0, "operator": set_action_array[0],
+                "parameter": set_action_array[1] if len(set_action_array) > 1 else None,
+                "input_set_id": self.input_set.set_id if self.input_set.set_id is not None else -1,
+                "operation_action": int(operation_action),
+            })
         return self.set_state, r_ext, r_int_js, done, f"{set_index}-{operation_action}"

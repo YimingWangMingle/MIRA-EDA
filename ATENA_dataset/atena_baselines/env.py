@@ -15,10 +15,17 @@ if not hasattr(pd.Series, "iteritems"):
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 BENCHMARK_DIR = ROOT_DIR / "ATENA-A-EDA" / "benchmark"
+sys.path.insert(0, str(ROOT_DIR.parent))
+from revision_support.resources import flush_events
 if str(BENCHMARK_DIR) not in sys.path:
     sys.path.insert(0, str(BENCHMARK_DIR))
 
 from atena.evaluation.distance import display_distance  # noqa: E402
+sys.path.insert(0, str(ROOT_DIR))
+from atena_common.task_reward import TaskRewardMixin, combine_task_reward
+from atena_common.costs import QueryCosts
+from atena_common.simulator import CountedSimulator
+
 from atena.simulation.actions import (  # noqa: E402
     ActionType,
     AggregationFunction,
@@ -98,7 +105,7 @@ class AtenaActionSpace:
         return [idx for idx, value in enumerate(self.action_kinds) if value == kind]
 
 
-class AtenaEDAEnv:
+class AtenaEDAEnv(TaskRewardMixin):
     """Official ATENA benchmark environment with task rewards for training."""
 
     def __init__(
@@ -108,7 +115,7 @@ class AtenaEDAEnv:
         episode_length: int = 12,
         max_terms_per_column: int = 10,
         seed: int = 0,
-        reward_mode: str = "compound",
+        reward_mode: str = "official_compound",
         w_interestingness: float = 1.0,
         w_diversity: float = 2.0,
         w_coherency: float = 1.0,
@@ -125,9 +132,9 @@ class AtenaEDAEnv:
         self.schema_name, self.dataset_name = dataset_enum(schema, dataset_number)
         self.dataset_meta = DatasetMeta(self.schema_name, self.dataset_name)
         self.dataset = Dataset(self.dataset_meta)
-        from atena.simulation.actions_simulator import ActionsSimulator
 
-        self.simulator = ActionsSimulator(self.dataset)
+        self.query_costs = QueryCosts()
+        self.simulator = CountedSimulator(self.dataset, self)
         self.action_space = AtenaActionSpace(
             self.dataset,
             max_terms_per_column=max_terms_per_column,
@@ -202,6 +209,8 @@ class AtenaEDAEnv:
         reward_info = self._compute_rewards(action_index, prev_display, current_display, step_info)
         task_reward = self._combine_reward(reward_info)
         done = self.step_index >= self.episode_length
+        if done:
+            flush_events()
         next_state = self._encode_current_state()
 
         return next_state, float(task_reward), done, {
@@ -220,10 +229,13 @@ class AtenaEDAEnv:
             raise ValueError(f"Action index {action_index} is not legal in the current state")
 
         snapshot = self._snapshot_mutable_state()
+        was_preview = getattr(self, "_profiling_preview", False)
+        self._profiling_preview = True
         try:
             _, reward, _, info = self.step(action_index)
             return float(reward), dict(info)
         finally:
+            self._profiling_preview = was_preview
             self._restore_mutable_state(snapshot)
 
     def _snapshot_mutable_state(self) -> Dict[str, object]:
@@ -295,16 +307,13 @@ class AtenaEDAEnv:
         self.visit_counts[state_hash] += 1
         dora_curiosity = 1.0 / math.sqrt(float(self.visit_counts[state_hash]))
         dora_familiarity, dora_target_hit = self._dora_familiarity(action)
-        official_kl, official_compaction = self._official_interestingness(action_kind, step_info, invalid)
-        official_diversity = diversity if not invalid else self.empty_penalty
+        common = self.common_reward_components(action_kind, step_info, invalid, repeated, diversity=diversity)
 
         return {
             "interestingness": float(interestingness),
             "diversity": float(diversity),
             "coherency": float(coherency),
-            "official_kl": float(official_kl),
-            "official_compaction": float(official_compaction),
-            "official_diversity": float(official_diversity),
+            **common,
             "dora_curiosity": float(dora_curiosity),
             "dora_familiarity": float(dora_familiarity),
             "dora_target_hit": float(dora_target_hit),
@@ -338,11 +347,7 @@ class AtenaEDAEnv:
         raise ValueError(f"Unknown reward_mode: {self.reward_mode}")
 
     def _official_compound_reward(self, reward_info):
-        return (
-            self.w_kl * reward_info.get("official_kl", 0.0)
-            + self.w_compaction * reward_info.get("official_compaction", 0.0)
-            + self.w_official_diversity * reward_info.get("official_diversity", 0.0)
-        )
+        return combine_task_reward(self, reward_info)
 
     def _build_dora_target_indices(self):
         target_size = max(1, int(self.dora_target_size))
@@ -409,88 +414,11 @@ class AtenaEDAEnv:
             return str(action.grouped_column)
         return ""
 
-    def _official_interestingness(self, action_kind: str, step_info, invalid: bool):
-        if action_kind == "BACK" or invalid:
-            return 0.0, 0.0
-        if action_kind == "FILTER":
-            return self._official_kl(step_info), 0.0
-        if action_kind == "GROUP":
-            return 0.0, self._official_compaction(step_info)
-        return 0.0, 0.0
 
-    def _official_kl(self, step_info):
-        previous_df = self._previous_filtered_df()
-        current_df = step_info._filtered_df
-        if len(previous_df) <= 0 or len(current_df) <= 0:
-            return self.empty_penalty
-        scores = []
-        epsilon = 0.2 / max(len(previous_df), 1)
-        for column in self.dataset.columns:
-            p_counts = self._value_counts(previous_df[column])
-            q_counts = self._value_counts(current_df[column])
-            keys = set(p_counts) | set(q_counts)
-            p_total = sum(p_counts.values()) + (epsilon * len(keys))
-            q_total = sum(q_counts.values()) + (epsilon * len(keys))
-            kl = 0.0
-            for key in keys:
-                p = (p_counts.get(key, 0.0) + epsilon) / p_total
-                q = (q_counts.get(key, 0.0) + epsilon) / q_total
-                kl += p * math.log(p / q)
-            scores.append(kl)
-        if not scores:
-            return 0.0
-        return float(1.0 / (1.0 + math.exp(-((max(scores) / 2.0) - 3.0))))
 
-    def _official_compaction(self, step_info):
-        if not step_info.state.is_grouped() or step_info._aggregated_df is None:
-            return 0.0
-        groups = len(step_info._aggregated_df)
-        if groups <= 1:
-            return self.empty_penalty
-        filtered_rows = max(len(step_info._filtered_df), 1)
-        grouped_columns = max(len(step_info.state["grouping"]), 1)
-        denominator_epsilon = 1e-5
-        compact_display = self._normalized_sigmoid(
-            center=0.5,
-            steepness=17.0,
-            value=1.0 - 1.0 / math.log(8.0 + (groups * grouped_columns) + denominator_epsilon, 8.0),
-        )
-        compact_data = 1.0 - self._normalized_sigmoid(
-            center=0.5,
-            steepness=17.0,
-            value=1.0 - 1.0 / math.log(7.0 + filtered_rows + denominator_epsilon, 7.0),
-        )
-        return float(compact_display * compact_data)
 
-    def _previous_filtered_df(self):
-        if not self.actions:
-            return self.dataset.dataset_df
-        previous_actions = self.actions[:-1]
-        from atena.simulation.actions_simulator import ActionsSimulator
 
-        simulator = ActionsSimulator(self.dataset)
-        if not previous_actions:
-            return self.dataset.dataset_df
-        steps = simulator.run_actions(previous_actions)
-        if not steps:
-            return self.dataset.dataset_df
-        return steps[-1]._filtered_df
 
-    @staticmethod
-    def _value_counts(series):
-        counts = Counter()
-        for value in series:
-            counts[str(value)] += 1
-        return counts
-
-    @staticmethod
-    def _normalized_sigmoid(center: float, steepness: float, value: float):
-        raw = 1.0 / (1.0 + math.exp(-float(steepness) * (float(value) - float(center))))
-        low = 1.0 / (1.0 + math.exp(float(steepness) * float(center)))
-        high = 1.0 / (1.0 + math.exp(-float(steepness) * (1.0 - float(center))))
-        if abs(high - low) <= 1e-12:
-            return raw
-        return (raw - low) / (high - low)
 
     def _interestingness(self, step_info):
         if step_info.state.is_grouped() and step_info._aggregated_df is not None:

@@ -47,6 +47,7 @@ def recalculate_all(results_dir, seed=0):
             deterministic_sessions[method],
             single_metric=_single_metric,
             corpus_metric=_corpus_metric,
+            seed=seed,
         )
         detail_rows.extend(detail)
         summary_by_method[method] = summary
@@ -60,6 +61,7 @@ def recalculate_all(results_dir, seed=0):
         random_sessions,
         single_metric=_single_metric,
         corpus_metric=_corpus_metric,
+        seed=seed,
     )
     detail_rows.extend(random_detail)
     summary_by_method["random"] = random_summary
@@ -83,7 +85,9 @@ def recalculate_all(results_dir, seed=0):
         "saved_eval_metrics_role": "audit only; not used in final table values",
         "results_dir": str(results_dir.resolve()),
     }
-    paths = write_outputs(results_dir, detail_rows, summary_rows, manifest)
+    for row in summary_rows:
+        row["seed"] = int(seed)
+    paths = write_outputs(results_dir / "corpus" / f"seed{seed}", detail_rows, summary_rows, manifest)
     return detail_rows, summary_rows, manifest, paths
 
 

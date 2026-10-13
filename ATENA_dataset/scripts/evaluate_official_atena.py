@@ -2,6 +2,7 @@ import argparse
 import csv
 import json
 import sys
+import time
 from pathlib import Path
 
 
@@ -44,10 +45,15 @@ def main():
     parser.add_argument("--most_probable", action="store_true", default=True)
     args, passthrough = parser.parse_known_args()
 
-    official_steps, reward = generate_official_steps(args, passthrough)
+    costs = {}
+    official_steps, reward = generate_official_steps(args, passthrough, costs=costs)
+    metric_started = time.perf_counter()
     dataset_meta = dataset_meta_from_args(args.schema, args.dataset_number)
     benchmark_actions = convert_official_steps(dataset_meta, official_steps)
     metrics = official_metrics(dataset_meta, benchmark_actions)
+    costs["metric_seconds"] = time.perf_counter() - metric_started
+    costs.update(session_count=1, simulator_calls=None,
+                 counting_note="Native official engine is unchanged; simulator-call counts from custom methods are not applicable.")
 
     outdir = Path(args.output_dir) / args.schema / f"dataset{args.dataset_number}" / f"seed{args.seed}"
     outdir.mkdir(parents=True, exist_ok=True)
@@ -58,16 +64,21 @@ def main():
         "seed": args.seed,
         "load": str(args.load),
         "episode_reward": float(reward),
+        "session_setup_seconds": costs["session_setup_seconds"],
+        "session_generation_seconds": costs["session_generation_seconds"],
+        "metric_seconds": costs["metric_seconds"],
         **metrics,
     }
     write_json(outdir / "raw_actions.json", to_jsonable(official_steps))
     write_json(outdir / "actions.json", [repr(action) for action in benchmark_actions])
     write_json(outdir / "final_metrics.json", row)
     write_csv(outdir / "eval_metrics.csv", [row])
+    write_json(outdir / "costs.json", costs)
     print(json.dumps(row, indent=2))
 
 
-def generate_official_steps(args, passthrough):
+def generate_official_steps(args, passthrough, costs=None):
+    setup_started = time.perf_counter()
     official_dataset_index = official_dataset_number(args.dataset_number)
     sys.argv = [
         "evaluate_official_atena.py",
@@ -96,6 +107,9 @@ def generate_official_steps(args, passthrough):
     from Utilities.Utility_Functions import initialize_agent_and_env
 
     agent, env, official_args = initialize_agent_and_env(is_test=True)
+    generation_started = time.perf_counter()
+    if costs is not None:
+        costs["session_setup_seconds"] = generation_started - setup_started
     info_hist, reward = run_episode(
         agent=agent,
         env=env.env,
@@ -103,6 +117,8 @@ def generate_official_steps(args, passthrough):
         most_probable=True,
         verbose=False,
     )
+    if costs is not None:
+        costs["session_generation_seconds"] = time.perf_counter() - generation_started
     steps = []
     for info, step_reward in info_hist:
         raw_action = list(info["raw_action"])

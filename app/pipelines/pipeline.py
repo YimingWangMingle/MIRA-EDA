@@ -124,18 +124,9 @@ class Pipeline:
         if table_name == "galaxies":
             dtype_map["objID"] = "string"
 
-        try:
-            if len(dtype_map) > 0:
-                df = pd.read_csv(csv_path, dtype=dtype_map)
-            else:
-                df = pd.read_csv(csv_path)
-        except Exception:
-            # 如果 column_forced_types.csv 中某些 dtype 写法不兼容，
-            # 至少保证 galaxies 的 objID 仍然安全读取
-            if table_name == "galaxies":
-                df = pd.read_csv(csv_path, dtype={"objID": "string"})
-            else:
-                df = pd.read_csv(csv_path)
+        # A malformed input/schema is a failed run, not permission to change
+        # declared column types and silently retry with a different dataset.
+        df = pd.read_csv(csv_path, dtype=dtype_map) if dtype_map else pd.read_csv(csv_path)
 
         return df.add_prefix(table_name + ".")
 

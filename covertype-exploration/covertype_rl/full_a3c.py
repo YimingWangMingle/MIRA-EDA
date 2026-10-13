@@ -2,17 +2,29 @@ import argparse
 import csv
 import json
 import os
-import traceback
+import sys
+import random
 from pathlib import Path
 from types import SimpleNamespace
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from revision_support.covertype_defaults import configure_covertype_runtime
+
+configure_covertype_runtime()
+
+from revision_support.resources import flush_events, query_step
+
 import numpy as np
+from revision_support.inference import predict as fast_predict
+from revision_support.ablation_config import add_ablation_arguments, validate_ablation_args, representation_options, ablation_label
+from revision_support.exploration_rewards import make_reward_replacement, select_bonus
+from revision_support.galaxy_execution import complete_training
 import ray
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, Input, LSTM
 
 from .actions import build_action_space
-from .bile import BILEModule, normalize_direction, sample_direction
+from .mira import MIRAModule
 from .data import load_covertype
 from .environment import FixedSetEnvironment
 from .fixed_sets import ensure_fixed_universe, load_fixed_universe
@@ -23,7 +35,7 @@ tf.keras.backend.set_floatx("float32")
 
 
 MIRA_BASELINES = {"mira", "mira_no_ext"}
-BASELINES = {"paper_a3c", "atena", "atena_extrinsic", "pure_a3c", *MIRA_BASELINES}
+BASELINES = {"dora", "atena", "atena_no_ext", "pure_a3c", *MIRA_BASELINES}
 
 
 class SetActor:
@@ -175,7 +187,8 @@ class CovertypeDualActorEnvironment:
     Operation actor: chooses the concrete graph action that reaches that slot.
     """
 
-    def __init__(self, universe, actions, episode_steps=250, seed=0, candidate_slots=10):
+    def __init__(self, universe, actions, episode_steps=250, seed=0, candidate_slots=10, mira_descriptors=False):
+        self.mira_descriptors = bool(mira_descriptors)
         self.universe = universe
         self.actions = actions
         self.episode_steps = int(episode_steps)
@@ -183,13 +196,22 @@ class CovertypeDualActorEnvironment:
         self.base_env = FixedSetEnvironment(universe, actions, episode_steps=episode_steps, seed=seed)
         self.set_state_dim = self.candidate_slots * self.universe.state_dim
         self.operation_state_dim = self.set_state_dim + self.universe.state_dim
+        self.region_state_dim = self.universe.state_dim
+        if self.mira_descriptors:
+            self.region_state_dim += 2
+            self.set_state_dim = (self.candidate_slots+1)*self.region_state_dim + 1
+            self.operation_state_dim = self.set_state_dim + self.region_state_dim
+            # Cached constraints are the tail of each legacy region descriptor.
+            n_constraints = int(self.universe.constraints.shape[1])
+            offset = self.candidate_slots*self.region_state_dim
+            self.statistic_indices = [offset+i for i in range(self.universe.state_dim-n_constraints)]
+            self.statistic_indices += [offset+self.universe.state_dim, offset+self.universe.state_dim+1]
         self.set_action_dim = self.candidate_slots
         self.operation_action_dim = self.universe.action_dim
         self.step_count = 0
         self.set_state = None
         self.candidate_set_ids = []
         self.candidate_action_ids = []
-        self.candidate_bile_scores = []
         self.sets_viewed = set()
         self.exploration_trace_rows = []
         self.visited_set_state_rows = {}
@@ -205,28 +227,28 @@ class CovertypeDualActorEnvironment:
         return self.set_state
 
     def _candidate_groups_for_set(self, set_id):
-        set_id = int(set_id)
-        row = np.asarray(self.universe.graph[set_id], dtype=np.int64)
-        grouped = {}
-        family_by_set = {}
-        for action_id, next_set_id in enumerate(row.tolist()):
-            next_set_id = int(next_set_id)
-            if next_set_id == set_id:
-                continue
-            grouped.setdefault(next_set_id, []).append(int(action_id))
-            family_by_set.setdefault(next_set_id, set()).add(str(self.actions[action_id].family))
-        return list(grouped.keys()), grouped, family_by_set
+        from covertype_rl.candidates import _candidate_groups
+        return _candidate_groups(self.universe, self.actions, set_id)
 
-    def _build_set_state(self, candidate_set_ids):
+    def _region_state(self, set_id):
+        if self.mira_descriptors:
+            from revision_support.mira_descriptors import covertype_region
+            return covertype_region(self.universe, set_id)
+        return self.universe.state_for_set(set_id)
+
+    def _build_set_state(self, candidate_set_ids, current_set_id=None):
         pieces = []
         for set_id in candidate_set_ids:
             if int(set_id) >= 0:
-                pieces.append(self.universe.state_for_set(int(set_id)))
+                pieces.append(self._region_state(int(set_id)))
             else:
-                pieces.append(np.zeros(self.universe.state_dim, dtype=np.float32))
+                pieces.append(np.zeros(self.region_state_dim, dtype=np.float32))
+        if self.mira_descriptors:
+            current_set_id = self.base_env.current_set_id if current_set_id is None else current_set_id
+            pieces += [self._region_state(int(current_set_id)), [self.step_count / max(self.episode_steps, 1)]]
         return np.concatenate(pieces).astype(np.float32)
 
-    def _apply_candidates(self, candidate_set_ids, grouped, score_by_set=None):
+    def _apply_candidates(self, candidate_set_ids, grouped):
         candidate_set_ids = list(candidate_set_ids)
         candidate_action_ids = [list(grouped.get(int(set_id), [])) if int(set_id) >= 0 else [] for set_id in candidate_set_ids]
         while len(candidate_set_ids) < self.candidate_slots:
@@ -237,10 +259,6 @@ class CovertypeDualActorEnvironment:
 
         self.candidate_set_ids = candidate_set_ids
         self.candidate_action_ids = candidate_action_ids
-        if score_by_set is None:
-            self.candidate_bile_scores = [float("nan") if int(set_id) >= 0 else -np.inf for set_id in candidate_set_ids]
-        else:
-            self.candidate_bile_scores = [float(score_by_set.get(int(set_id), -np.inf)) if int(set_id) >= 0 else -np.inf for set_id in candidate_set_ids]
         self.set_state = self._build_set_state(self.candidate_set_ids)
 
     def _refresh_candidates(self):
@@ -254,79 +272,10 @@ class CovertypeDualActorEnvironment:
         self._apply_candidates(candidate_set_ids, grouped)
 
     def _select_candidate_set_ids(self, all_candidate_set_ids, family_by_set, reference_set_size=None):
-        """Select visible next sets without using target or reward information.
-
-        Galaxy exposes a compact list of operator result sets at each step. The
-        fixed Covertype graph can expose many more next sets, so we keep the same
-        compact interface while preserving operator-family and set-size diversity.
-        """
-        if len(all_candidate_set_ids) <= self.candidate_slots:
-            return list(all_candidate_set_ids)
-
-        selected = []
-        selected_set = set()
-
-        def add(set_id):
-            set_id = int(set_id)
-            if set_id in selected_set:
-                return False
-            if len(selected) >= self.candidate_slots:
-                return False
-            selected.append(set_id)
-            selected_set.add(set_id)
-            return True
-
-        reference_set_size = (
-            self.base_env.previous_set_size
-            if reference_set_size is None
-            else int(reference_set_size)
-        )
-        for family in ("by_facet", "by_superset", "by_neighbors", "by_distribution"):
-            family_candidates = [
-                int(set_id)
-                for set_id in all_candidate_set_ids
-                if family in family_by_set.get(int(set_id), set())
-            ]
-            if not family_candidates:
-                continue
-            family_candidates.sort(
-                key=lambda set_id: (
-                    abs(np.log1p(float(self.universe.size_for_set(set_id))) - np.log1p(float(reference_set_size))),
-                    int(set_id),
-                )
-            )
-            add(family_candidates[0])
-
-        remaining = [int(set_id) for set_id in all_candidate_set_ids if int(set_id) not in selected_set]
-        if not remaining:
-            return selected
-
-        remaining.sort(key=lambda set_id: (float(self.universe.size_for_set(set_id)), int(set_id)))
-        quantile_indices = np.linspace(0, len(remaining) - 1, max(1, self.candidate_slots - len(selected)))
-        for index in quantile_indices.round().astype(int).tolist():
-            add(remaining[int(index)])
-
-        if len(selected) < self.candidate_slots:
-            selected_states = [self.universe.state_for_set(set_id) for set_id in selected]
-            leftovers = [set_id for set_id in remaining if set_id not in selected_set]
-            while leftovers and len(selected) < self.candidate_slots:
-                if not selected_states:
-                    add(leftovers.pop(0))
-                    selected_states.append(self.universe.state_for_set(selected[-1]))
-                    continue
-                best_pos = 0
-                best_distance = -1.0
-                for pos, set_id in enumerate(leftovers):
-                    state = self.universe.state_for_set(set_id)
-                    distance = min(float(np.linalg.norm(state - existing)) for existing in selected_states)
-                    if distance > best_distance:
-                        best_distance = distance
-                        best_pos = pos
-                chosen = leftovers.pop(best_pos)
-                if add(chosen):
-                    selected_states.append(self.universe.state_for_set(chosen))
-
-        return selected
+        from covertype_rl.candidates import _select_candidate_set_ids
+        size = self.base_env.previous_set_size if reference_set_size is None else reference_set_size
+        return _select_candidate_set_ids(self.universe, all_candidate_set_ids, family_by_set,
+                                         size, self.candidate_slots)
 
     def _default_context_state_for_set(self, set_id):
         set_id = int(set_id)
@@ -338,16 +287,17 @@ class CovertypeDualActorEnvironment:
         )
         while len(candidate_set_ids) < self.candidate_slots:
             candidate_set_ids.append(-1)
-        return self._build_set_state(candidate_set_ids[: self.candidate_slots])
+        return self._build_set_state(candidate_set_ids[: self.candidate_slots], current_set_id=set_id)
 
-    def rerank_candidates_by_bile(self, bile, z, family_keep=4):
-        """Rerank visible next sets by alignment with the current BILE direction.
+    def rerank_candidates_by_mira(self, mira, z, family_keep=4):
+        """Retrieve legal next sets by alignment with the current MIRA direction.
 
         This does not use target membership or reward. It only asks whether the
-        latent transition from the current candidate context to each possible
-        next candidate context follows the episode-level BILE direction z.
+        latent transition from the current candidate context to each legal
+        neighbor context follows the episode-level MIRA direction z. The graph
+        is shared with the baselines; MIRA supplies its own shortlist.
         """
-        if bile is None or z is None:
+        if mira is None or z is None:
             return self.set_state
 
         current_set_id = int(self.base_env.current_set_id)
@@ -361,15 +311,13 @@ class CovertypeDualActorEnvironment:
             return self.set_state
         z = (z / z_norm).astype(np.float32)
 
-        try:
-            current_context = np.asarray(self.set_state, dtype=np.float32).reshape(1, -1)
-            next_contexts = np.asarray(
-                [self._default_context_state_for_set(set_id) for set_id in all_candidate_set_ids],
-                dtype=np.float32,
-            )
-            phi = bile.embed(np.concatenate([current_context, next_contexts], axis=0))
-        except Exception:
-            return self.set_state
+        current_context = np.asarray(self._default_context_state_for_set(current_set_id), dtype=np.float32).reshape(1, -1)
+        next_contexts = np.asarray(
+            [self._default_context_state_for_set(set_id) for set_id in all_candidate_set_ids],
+            dtype=np.float32,
+        )
+        encoder_inputs = np.concatenate([current_context, next_contexts], axis=0)
+        phi = mira.reward_embed(encoder_inputs)
 
         phi_current = np.asarray(phi[0], dtype=np.float32)
         phi_next = np.asarray(phi[1:], dtype=np.float32)
@@ -378,7 +326,8 @@ class CovertypeDualActorEnvironment:
         valid = norms > 1e-8
         scores = np.full(len(all_candidate_set_ids), -np.inf, dtype=np.float64)
         if np.any(valid):
-            scores[valid] = np.dot(deltas[valid] / norms[valid, None], z)
+            scores[valid] = np.dot(deltas[valid], z)
+        scores[~valid] = 0.
 
         score_by_set = {
             int(set_id): float(score)
@@ -422,24 +371,9 @@ class CovertypeDualActorEnvironment:
                 break
 
         selected.sort(key=lambda set_id: (score_by_set.get(int(set_id), -np.inf), -int(set_id)), reverse=True)
-        self._apply_candidates(selected, grouped, score_by_set=score_by_set)
+        self._apply_candidates(selected, grouped)
         return self.set_state
 
-    def bile_candidate_prior_probs(self, temperature=0.25):
-        scores = np.asarray(self.candidate_bile_scores, dtype=np.float64)
-        mask = np.asarray([1.0 if int(set_id) >= 0 else 0.0 for set_id in self.candidate_set_ids], dtype=np.float64)
-        if scores.size != mask.size or mask.sum() <= 0.0:
-            return _masked_probs(np.ones_like(mask, dtype=np.float64), mask)
-        finite = np.isfinite(scores) & (mask > 0.0)
-        if not np.any(finite):
-            return _masked_probs(np.ones_like(mask, dtype=np.float64), mask)
-        shifted = np.full_like(scores, -np.inf, dtype=np.float64)
-        valid_scores = scores[finite]
-        temperature = max(float(temperature), 1e-6)
-        shifted[finite] = (valid_scores - float(np.max(valid_scores))) / temperature
-        exp_scores = np.zeros_like(scores, dtype=np.float64)
-        exp_scores[finite] = np.exp(np.clip(shifted[finite], -60.0, 60.0))
-        return _masked_probs(exp_scores, mask)
 
     def fix_possible_set_action_probs(self, probs):
         probs = np.asarray(probs, dtype=np.float64)
@@ -449,9 +383,9 @@ class CovertypeDualActorEnvironment:
     def get_operation_state(self, set_action):
         set_action = int(set_action)
         if 0 <= set_action < len(self.candidate_set_ids) and int(self.candidate_set_ids[set_action]) >= 0:
-            candidate_state = self.universe.state_for_set(int(self.candidate_set_ids[set_action]))
+            candidate_state = self._region_state(int(self.candidate_set_ids[set_action]))
         else:
-            candidate_state = np.zeros(self.universe.state_dim, dtype=np.float32)
+            candidate_state = np.zeros(self.region_state_dim, dtype=np.float32)
         return np.concatenate([self.set_state, candidate_state]).astype(np.float32)
 
     def fix_possible_operation_action_probs(self, set_action, probs):
@@ -466,6 +400,7 @@ class CovertypeDualActorEnvironment:
             mask[np.asarray(valid, dtype=np.int64)] = 1.0
         return _masked_probs(probs, mask)
 
+    @query_step
     def step(self, set_action, operation_action):
         self.step_count += 1
         set_action = int(set_action)
@@ -501,6 +436,7 @@ class CovertypeDualActorEnvironment:
         return self.set_state, float(metrics["extrinsic_reward"]), float(metrics["interestingness"]), done, f"{previous_set_id}-{operation_action}", metrics
 
     def consume_exploration_logs(self):
+        flush_events()
         trace_rows = list(self.exploration_trace_rows)
         state_rows = [
             {"set_id": int(set_id), "state": state}
@@ -514,33 +450,24 @@ class ParameterServer:
     def __init__(self, set_state_dim, operation_state_dim, set_action_dim, operation_action_dim, args_dict):
         _configure_tf()
         self.args = SimpleNamespace(**args_dict)
+        random.seed(self.args.seed)
+        np.random.seed(self.args.seed)
+        tf.random.set_seed(self.args.seed)
         self.episodes_reserved = int(getattr(self.args, "resume_start_episode", 0) or 0)
         self.episodes_done = int(getattr(self.args, "resume_start_episode", 0) or 0)
         self.global_sets_viewed = set()
         self.cumulative_extrinsic_reward = 0.0
         self.logged_state_ids = set()
-        self.is_bile = self.args.baseline in MIRA_BASELINES
-        self.bile_success_states = []
-        self.bile_success_next_states = []
-        self.bile_success_scores = []
-        self.bile_success_kinds = []
-        self.bile_success_episodes = []
-        self.bile_buffer_states = None
-        self.bile_buffer_next_states = None
-        self.bile_buffer_set_actions = None
-        self.bile_buffer_operation_actions = None
-        self.bile_buffer_rewards_ext = None
-        self.bile_buffer_size = 0
-        self.bile_buffer_pos = 0
-        self.bile_rng = np.random.default_rng(int(self.args.seed) + 20260619)
-        self.recent_extrinsic_rewards = []
+        self.is_mira = self.args.baseline in MIRA_BASELINES
+        self.mira_rng = np.random.default_rng(int(self.args.seed) + 20260619)
         self.z_sample_count = 0
 
         self.output_dir = Path(self.args.output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.prefix = self.args.output_prefix or f"{self.args.baseline}_seed{self.args.seed}_full_a3c"
         self.run_dir = self.output_dir / self.prefix
-        self.run_dir.mkdir(parents=True, exist_ok=True)
+        prepared = getattr(self.args, '_prepared_run_dir', None) == str(self.run_dir.resolve())
+        self.run_dir.mkdir(parents=True, exist_ok=prepared or not bool(ablation_label(self.args)))
         self.rewards_path = self.run_dir / f"{self.prefix}_{self.args.baseline}_rewards.csv"
         self.trace_path = self.run_dir / f"{self.prefix}_{self.args.baseline}_exploration_trace.csv"
         self.states_path = self.run_dir / f"{self.prefix}_{self.args.baseline}_visited_set_states.csv"
@@ -582,21 +509,25 @@ class ParameterServer:
             dense_units=critic_units,
             lstm_units=self.args.critic_lstm_units,
         )
-        self.global_bile = None
-        if self.is_bile:
-            self.global_bile = BILEModule(
+        self.reward_replacement = make_reward_replacement(self.args, self.args.base_set_state_dim)
+        self.global_mira = None
+        if self.is_mira:
+            self.global_mira = MIRAModule(
                 state_dim=self.args.base_set_state_dim,
                 set_action_dim=set_action_dim,
                 operation_action_dim=operation_action_dim,
-                latent_dim=self.args.bile_latent_dim,
-                lr=self.args.bile_lr,
-                dense_units=self.args.bile_dense_units,
-                target_tau=self.args.bile_target_tau,
+                latent_dim=self.args.mira_latent_dim,
+                lr=self.args.mira_lr,
+                dense_units=self.args.mira_dense_units,
+                target_tau=self.args.mira_target_tau,
+                **representation_options(self.args),
             )
-        self.orthogonal_directions = self._build_orthogonal_directions(
-            max(int(self.args.workers) * 2, 16),
-            int(self.args.bile_latent_dim),
-        )
+        self.mira_learner = None
+        if self.global_mira is not None:
+            from revision_support.mira_learner import RepresentationLearner
+            self.mira_learner = RepresentationLearner(self.global_mira, capacity=self.args.mira_replay_buffer_size,
+                batch_size=self.args.mira_phi_batch_size, min_size=self.args.mira_min_replay_size,
+                seed=self.args.seed, gamma=self.args.gamma, phi_weight=self.args.mira_phi_weight, dyn_weight=self.args.mira_dyn_weight)
 
         self._write_config(set_state_dim, operation_state_dim, set_action_dim, operation_action_dim)
         self._init_csv_files()
@@ -611,7 +542,7 @@ class ParameterServer:
             "operation_action_dim": int(operation_action_dim),
             "base_set_state_dim": int(getattr(self.args, "base_set_state_dim", set_state_dim)),
             "base_operation_state_dim": int(getattr(self.args, "base_operation_state_dim", operation_state_dim)),
-            "note": "Covertype fixed-set universe with Galaxy-style set actor, operation actor, critic, optional BILE encoder/dynamics, and Ray parameter server.",
+            "note": "Covertype fixed-set universe with Galaxy-style set actor, operation actor, critic, optional MIRA encoder/dynamics, and Ray parameter server.",
         }
         with open(self.config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
@@ -637,22 +568,16 @@ class ParameterServer:
                     "cumulative_extrinsic_reward",
                     "cumulative_target_efficiency",
                     "valid_steps",
-                    "bile_bonus",
-                    "bootstrap_diversity",
+                    "mira_bonus",
                     "exploration_reward",
-                    "bile_phi_loss",
-                    "bile_dyn_loss",
-                    "bile_prediction_error",
-                    "bile_mean_d_phi",
-                    "bile_mean_metric_target",
-                    "bile_z_source",
-                    "bile_zpool_size",
-                    "recent_success_ratio",
-                    "recent_low_reward_ratio",
-                    "bootstrap_active",
-                    "escape_active",
-                    "bile_pair_source",
-                    "bile_replay_size",
+                    "mira_phi_loss",
+                    "mira_dyn_loss",
+                    "mira_prediction_error",
+                    "mira_mean_d_phi",
+                    "mira_mean_metric_target",
+                    "mira_z_source",
+                    "mira_pair_source",
+                    "mira_replay_size",
                 ]
             )
         with open(self.trace_path, "w", newline="", encoding="utf-8") as f:
@@ -675,11 +600,8 @@ class ParameterServer:
                     "step_total_reward",
                     "set_size",
                     "valid",
-                    "step_bile_bonus",
-                    "step_bootstrap_diversity",
-                    "bootstrap_active",
-                    "escape_active",
-                    "bile_z_source",
+                    "step_mira_bonus",
+                    "mira_z_source",
                 ]
             )
 
@@ -694,345 +616,44 @@ class ParameterServer:
             "set": self.global_set_actor.model.get_weights(),
             "op": self.global_operation_actor.model.get_weights(),
             "critic": self.global_critic.model.get_weights(),
-            "bile": self.global_bile.get_weights() if self.global_bile is not None else None,
+            "mira": self.mira_learner.weights() if self.mira_learner is not None else None,
         }
 
-    def apply_gradients_and_get_weights(self, set_grads, op_grads, critic_grads, bile_encoder_grads=None, bile_dynamics_grads=None):
+    def apply_gradients_and_get_weights(self, set_grads, op_grads, critic_grads, mira_encoder_grads=None, mira_dynamics_grads=None):
         if set_grads:
             self.global_set_actor.apply_gradients(set_grads)
         if op_grads:
             self.global_operation_actor.apply_gradients(op_grads)
         if critic_grads:
             self.global_critic.apply_gradients(critic_grads)
-        if self.global_bile is not None:
-            self.global_bile.apply_gradients(bile_encoder_grads, bile_dynamics_grads)
+        if self.global_mira is not None:
+            self.mira_learner.check()
         return self.get_weights()
 
-    def _normalize_direction(self, direction):
-        return normalize_direction(direction, int(self.args.bile_latent_dim))
 
-    def _build_orthogonal_directions(self, count, dim):
-        dim = int(dim)
-        count = int(count)
-        random_matrix = self.bile_rng.normal(size=(dim, min(count, dim))).astype(np.float32)
-        q, _ = np.linalg.qr(random_matrix)
-        directions = [q[:, idx].astype(np.float32) for idx in range(q.shape[1])]
-        while len(directions) < count:
-            directions.append(self._normalize_direction(self.bile_rng.normal(size=dim)))
-        return directions
+    def sample_mira_direction(self):
+        from revision_support.direction_sampling import unassisted_direction
+        return unassisted_direction(self, 'covertype')
 
-    def _sample_random_direction(self):
-        return sample_direction(self.bile_rng, int(self.args.bile_latent_dim))
 
-    def _recent_extrinsic_average(self):
-        window = max(1, int(self.args.bootstrap_window))
-        if not self.recent_extrinsic_rewards:
-            return 0.0
-        recent = self.recent_extrinsic_rewards[-window:]
-        return float(np.mean(recent))
+    def update_and_sample_mira_batch(self, states, set_actions, operation_actions, task_rewards, next_states, episode):
+        # task_rewards are already isolated: noExt contains interestingness only.
+        actions = np.column_stack([np.asarray(set_actions).reshape(-1), np.asarray(operation_actions).reshape(-1)])
+        from revision_support.mira_task import replay_task_reward
+        return self.mira_learner.submit(states, actions, replay_task_reward(task_rewards, self.args), next_states)
 
-    def _recent_success_ratio(self):
-        window = max(1, int(self.args.bootstrap_window))
-        if not self.recent_extrinsic_rewards:
-            return 0.0
-        recent = self.recent_extrinsic_rewards[-window:]
-        threshold = float(self.args.bootstrap_success_threshold)
-        return float(np.mean([1.0 if value >= threshold else 0.0 for value in recent]))
+    def save_mira_snapshot(self, directory):
+        self.mira_learner.check()
+        with self.mira_learner.lock:
+            self.global_mira.save_models(directory)
 
-    def _recent_low_reward_ratio(self, window=None):
-        window = max(1, int(window if window is not None else self.args.bootstrap_window))
-        if not self.recent_extrinsic_rewards:
-            return 0.0
-        recent = self.recent_extrinsic_rewards[-window:]
-        threshold = float(self.args.escape_low_reward_threshold)
-        return float(np.mean([1.0 if value < threshold else 0.0 for value in recent]))
 
-    def _bootstrap_active(self):
-        if self.args.baseline != "mira":
-            return False
-        zpool_small = len(self.bile_success_states) < int(self.args.bootstrap_zpool_threshold)
-        recent_low = (
-            self._recent_extrinsic_average() < float(self.args.bootstrap_ext_threshold)
-            or self._recent_low_reward_ratio(self.args.bootstrap_window) >= float(self.args.escape_low_ratio_threshold)
-        )
-        recent_weak = (
-            self._recent_success_ratio() < float(self.args.bootstrap_success_ratio_threshold)
-            if bool(self.args.bootstrap_use_success_ratio)
-            else False
-        )
-        return bool(zpool_small or recent_low or recent_weak)
 
-    def _escape_active(self):
-        if self.args.baseline != "mira":
-            return False
-        window = max(1, int(self.args.escape_window))
-        if len(self.recent_extrinsic_rewards) < window:
-            return False
-        recent = self.recent_extrinsic_rewards[-window:]
-        recent_avg_low = float(np.mean(recent)) < float(self.args.escape_ext_threshold)
-        recent_low_ratio = self._recent_low_reward_ratio(window) >= float(self.args.escape_low_ratio_threshold)
-        return bool(recent_avg_low or recent_low_ratio)
 
-    def _sample_success_direction(self):
-        if not self.bile_success_states:
-            return None
-        scores = np.asarray(self.bile_success_scores, dtype=np.float64)
-        score_clip = float(self.args.bile_success_score_clip)
-        if score_clip > 0.0:
-            scores = np.minimum(scores, score_clip)
-        weights = np.power(np.maximum(scores, 0.0), float(self.args.bile_success_weight_power)) + 1e-6
-        weights = weights / max(float(weights.sum()), 1e-12)
-        idx = int(self.bile_rng.choice(len(self.bile_success_states), p=weights))
-        states = np.asarray(
-            [
-                self.bile_success_states[idx],
-                self.bile_success_next_states[idx],
-            ],
-            dtype=np.float32,
-        ).reshape((2, int(self.args.base_set_state_dim)))
-        phi_pair = self.global_bile.embed(states)
-        base_direction = phi_pair[1] - phi_pair[0]
-        noise = self._sample_random_direction()
-        return self._normalize_direction(
-            base_direction + (float(self.args.bile_success_noise_scale) * noise)
-        )
 
-    def sample_bile_direction(self):
-        if not self.is_bile:
-            return {
-                "z": [],
-                "z_source": "none",
-                "zpool_size": 0,
-                "bootstrap_active": False,
-                "escape_active": False,
-                "recent_ext_avg": 0.0,
-                "recent_success_ratio": 0.0,
-                "recent_low_reward_ratio": 0.0,
-            }
-
-        if self.args.baseline != "mira":
-            z = self._sample_random_direction()
-            return {
-                "z": z.astype(np.float32).tolist(),
-                "z_source": "random",
-                "zpool_size": 0,
-                "bootstrap_active": False,
-                "escape_active": False,
-                "recent_ext_avg": 0.0,
-                "recent_success_ratio": 0.0,
-                "recent_low_reward_ratio": 0.0,
-            }
-
-        self.z_sample_count += 1
-        escape_active = self._escape_active()
-        bootstrap_active = self._bootstrap_active() or escape_active
-
-        if escape_active:
-            success_prob = max(0.0, min(1.0, float(self.args.escape_success_prob)))
-            orthogonal_prob = max(0.0, min(1.0, float(self.args.escape_orthogonal_prob)))
-            draw = float(self.bile_rng.random())
-            success_z = self._sample_success_direction() if self.bile_success_states else None
-            if success_z is not None and draw < success_prob:
-                z = success_z
-                z_source = "escape_success"
-            else:
-                if float(self.bile_rng.random()) < orthogonal_prob:
-                    index = self.z_sample_count % len(self.orthogonal_directions)
-                    z = self.orthogonal_directions[index]
-                    z_source = "escape_orthogonal"
-                else:
-                    z = self._sample_random_direction()
-                    z_source = "escape_random"
-        elif bootstrap_active:
-            if float(self.bile_rng.random()) < 0.80:
-                index = self.z_sample_count % len(self.orthogonal_directions)
-                z = self.orthogonal_directions[index]
-                z_source = "bootstrap_orthogonal"
-            else:
-                z = self._sample_random_direction()
-                z_source = "bootstrap_random"
-        else:
-            success_prob = max(0.0, min(1.0, float(self.args.bile_success_prob)))
-            orthogonal_prob = max(0.0, min(1.0, float(self.args.bile_orthogonal_prob)))
-            draw = float(self.bile_rng.random())
-            if self.bile_success_states and draw < success_prob:
-                z = self._sample_success_direction()
-                z_source = "success"
-            elif draw < success_prob + orthogonal_prob:
-                index = self.z_sample_count % len(self.orthogonal_directions)
-                z = self.orthogonal_directions[index]
-                z_source = "orthogonal"
-            else:
-                z = self._sample_random_direction()
-                z_source = "random"
-
-        return {
-            "z": z.astype(np.float32).tolist(),
-            "z_source": z_source,
-            "zpool_size": len(self.bile_success_states),
-            "bootstrap_active": bool(bootstrap_active),
-            "escape_active": bool(escape_active),
-            "recent_ext_avg": self._recent_extrinsic_average(),
-            "recent_success_ratio": self._recent_success_ratio(),
-            "recent_low_reward_ratio": self._recent_low_reward_ratio(
-                self.args.escape_window if escape_active else self.args.bootstrap_window
-            ),
-        }
-
-    def _success_sampling_scores(self):
-        scores = np.asarray(self.bile_success_scores, dtype=np.float64)
-        score_clip = float(self.args.bile_success_score_clip)
-        if score_clip > 0.0:
-            scores = np.minimum(scores, score_clip)
-        return scores
-
-    def update_and_sample_bile_batch(
-        self,
-        states,
-        set_actions,
-        operation_actions,
-        rewards_ext,
-        next_states,
-        episode,
-    ):
-        if not self.is_bile:
-            return {"source": "none", "buffer_size": 0}
-
-        stored = self._store_bile_transitions(
-            states,
-            set_actions,
-            operation_actions,
-            rewards_ext,
-            next_states,
-        )
-        if stored <= 0:
-            return {"source": "local_empty", "buffer_size": int(self.bile_buffer_size)}
-
-        warmup_episodes = int(getattr(self.args, "bile_pair_warmup_episodes", 100))
-        if int(episode) <= warmup_episodes:
-            return {"source": "local_warmup", "buffer_size": int(self.bile_buffer_size)}
-
-        min_replay_size = int(getattr(self.args, "bile_min_replay_size", 256))
-        if self.bile_buffer_size < max(2, min_replay_size):
-            return {"source": "local_small_buffer", "buffer_size": int(self.bile_buffer_size)}
-
-        batch_size = int(getattr(self.args, "bile_phi_batch_size", 128))
-        batch_size = min(max(2, batch_size), int(self.bile_buffer_size))
-        indices = self.bile_rng.choice(int(self.bile_buffer_size), size=batch_size, replace=False)
-        pair_indices = self.bile_rng.permutation(batch_size).astype(np.int64)
-        if batch_size > 1 and np.any(pair_indices == np.arange(batch_size, dtype=np.int64)):
-            pair_indices = np.roll(pair_indices, 1)
-
-        return {
-            "source": "replay_random_perm",
-            "buffer_size": int(self.bile_buffer_size),
-            "states": self.bile_buffer_states[indices].astype(np.float32),
-            "set_actions": self.bile_buffer_set_actions[indices].astype(np.int64),
-            "operation_actions": self.bile_buffer_operation_actions[indices].astype(np.int64),
-            "rewards_ext": self.bile_buffer_rewards_ext[indices].astype(np.float32),
-            "next_states": self.bile_buffer_next_states[indices].astype(np.float32),
-            "pair_indices": pair_indices,
-        }
-
-    def _store_bile_transitions(self, states, set_actions, operation_actions, rewards_ext, next_states):
-        max_size = int(getattr(self.args, "bile_replay_buffer_size", 50000))
-        if max_size <= 0:
-            return 0
-
-        state_dim = int(self.args.base_set_state_dim)
-        states_np = np.asarray(states, dtype=np.float32).reshape((-1, state_dim))
-        next_states_np = np.asarray(next_states, dtype=np.float32).reshape((-1, state_dim))
-        set_actions_np = np.asarray(set_actions, dtype=np.int64).reshape(-1)
-        operation_actions_np = np.asarray(operation_actions, dtype=np.int64).reshape(-1)
-        rewards_np = np.asarray(rewards_ext, dtype=np.float32).reshape(-1, 1)
-        count = min(
-            states_np.shape[0],
-            next_states_np.shape[0],
-            set_actions_np.shape[0],
-            operation_actions_np.shape[0],
-            rewards_np.shape[0],
-        )
-        if count <= 0:
-            return 0
-
-        states_np = states_np[-count:]
-        next_states_np = next_states_np[-count:]
-        set_actions_np = set_actions_np[-count:]
-        operation_actions_np = operation_actions_np[-count:]
-        rewards_np = rewards_np[-count:]
-        if count > max_size:
-            states_np = states_np[-max_size:]
-            next_states_np = next_states_np[-max_size:]
-            set_actions_np = set_actions_np[-max_size:]
-            operation_actions_np = operation_actions_np[-max_size:]
-            rewards_np = rewards_np[-max_size:]
-            count = max_size
-
-        if self.bile_buffer_states is None or self.bile_buffer_states.shape[0] != max_size:
-            self.bile_buffer_states = np.zeros((max_size, state_dim), dtype=np.float32)
-            self.bile_buffer_next_states = np.zeros((max_size, state_dim), dtype=np.float32)
-            self.bile_buffer_set_actions = np.zeros((max_size,), dtype=np.int64)
-            self.bile_buffer_operation_actions = np.zeros((max_size,), dtype=np.int64)
-            self.bile_buffer_rewards_ext = np.zeros((max_size, 1), dtype=np.float32)
-            self.bile_buffer_size = 0
-            self.bile_buffer_pos = 0
-
-        written = 0
-        while written < count:
-            take = min(count - written, max_size - int(self.bile_buffer_pos))
-            start = int(self.bile_buffer_pos)
-            end = start + take
-            src_end = written + take
-            self.bile_buffer_states[start:end] = states_np[written:src_end]
-            self.bile_buffer_next_states[start:end] = next_states_np[written:src_end]
-            self.bile_buffer_set_actions[start:end] = set_actions_np[written:src_end]
-            self.bile_buffer_operation_actions[start:end] = operation_actions_np[written:src_end]
-            self.bile_buffer_rewards_ext[start:end] = rewards_np[written:src_end]
-            self.bile_buffer_pos = (self.bile_buffer_pos + take) % max_size
-            self.bile_buffer_size = min(max_size, self.bile_buffer_size + take)
-            written = src_end
-        return int(count)
-
-    def update_bile_success_transitions(self, states, next_states, scores, kinds=None, episode=None):
-        if self.args.baseline != "mira":
-            return len(self.bile_success_states)
-        max_size = int(self.args.bile_success_pool_size)
-        if max_size <= 0:
-            self.bile_success_states = []
-            self.bile_success_next_states = []
-            self.bile_success_scores = []
-            self.bile_success_kinds = []
-            self.bile_success_episodes = []
-            return 0
-        min_score = float(getattr(self.args, "bile_success_quality_min_score", self.args.bile_min_success_reward))
-        score_clip = float(self.args.bile_success_score_clip)
-        state_dim = int(self.args.base_set_state_dim)
-        episode_id = int(episode if episode is not None else self.episodes_done)
-        states = list(states or [])
-        next_states = list(next_states or [])
-        scores = list(scores or [])
-        kinds = list(kinds or ["local"] * len(states))
-        if len(kinds) < len(states):
-            kinds.extend(["local"] * (len(states) - len(kinds)))
-        for state, next_state, score, kind in zip(states, next_states, scores, kinds):
-            score = float(score)
-            if score <= min_score:
-                continue
-            if score_clip > 0.0:
-                score = min(score, score_clip)
-            self.bile_success_states.append(np.asarray(state, dtype=np.float32).reshape(state_dim))
-            self.bile_success_next_states.append(np.asarray(next_state, dtype=np.float32).reshape(state_dim))
-            self.bile_success_scores.append(score)
-            self.bile_success_kinds.append(str(kind or "local"))
-            self.bile_success_episodes.append(episode_id)
-        if len(self.bile_success_states) > max_size:
-            keep = np.argsort(np.asarray(self.bile_success_scores, dtype=np.float64))[::-1][:max_size]
-            self.bile_success_states = [self.bile_success_states[int(idx)] for idx in keep]
-            self.bile_success_next_states = [self.bile_success_next_states[int(idx)] for idx in keep]
-            self.bile_success_scores = [self.bile_success_scores[int(idx)] for idx in keep]
-            self.bile_success_kinds = [self.bile_success_kinds[int(idx)] for idx in keep]
-            self.bile_success_episodes = [self.bile_success_episodes[int(idx)] for idx in keep]
-        return len(self.bile_success_states)
+    def record_pca_collection(self, records):
+        from revision_support.pca_training import record_collection
+        return record_collection(self, records, 'covertype')
 
     def record_episode(self, episode, totals, episode_set_ids, trace_rows, state_rows):
         self.episodes_done += 1
@@ -1040,10 +661,6 @@ class ParameterServer:
         episode_sets = {int(set_id) for set_id in episode_set_ids if int(set_id) >= 0}
         self.global_sets_viewed.update(episode_sets)
         self.cumulative_extrinsic_reward += float(totals["extrinsic_reward"])
-        self.recent_extrinsic_rewards.append(float(totals["extrinsic_reward"]))
-        max_recent = max(1, max(int(self.args.bootstrap_window), int(self.args.escape_window)) * 4)
-        if len(self.recent_extrinsic_rewards) > max_recent:
-            self.recent_extrinsic_rewards = self.recent_extrinsic_rewards[-max_recent:]
         cumulative_unique = len(self.global_sets_viewed)
         sets_viewed = len(episode_sets)
         cumulative_efficiency = self.cumulative_extrinsic_reward / max(cumulative_unique, 1)
@@ -1068,22 +685,16 @@ class ParameterServer:
                     float(self.cumulative_extrinsic_reward),
                     float(cumulative_efficiency),
                     int(totals["valid_steps"]),
-                    float(totals.get("bile_bonus", 0.0)),
-                    float(totals.get("bootstrap_diversity", 0.0)),
+                    float(totals.get("mira_bonus", 0.0)),
                     float(totals.get("exploration_reward", 0.0)),
-                    float(totals.get("bile_phi_loss", 0.0)),
-                    float(totals.get("bile_dyn_loss", 0.0)),
-                    float(totals.get("bile_prediction_error", 0.0)),
-                    float(totals.get("bile_mean_d_phi", 0.0)),
-                    float(totals.get("bile_mean_metric_target", 0.0)),
-                    totals.get("bile_z_source", ""),
-                    int(totals.get("bile_zpool_size", 0)),
-                    float(self._recent_success_ratio()),
-                    float(self._recent_low_reward_ratio(self.args.escape_window)),
-                    int(totals.get("bootstrap_active", 0)),
-                    int(totals.get("escape_active", 0)),
-                    totals.get("bile_pair_source", ""),
-                    int(totals.get("bile_replay_size", 0)),
+                    float(totals.get("mira_phi_loss", 0.0)),
+                    float(totals.get("mira_dyn_loss", 0.0)),
+                    float(totals.get("mira_prediction_error", 0.0)),
+                    float(totals.get("mira_mean_d_phi", 0.0)),
+                    float(totals.get("mira_mean_metric_target", 0.0)),
+                    totals.get("mira_z_source", ""),
+                    totals.get("mira_pair_source", ""),
+                    int(totals.get("mira_replay_size", 0)),
                 ]
             )
 
@@ -1108,11 +719,8 @@ class ParameterServer:
                         float(row.get("step_total_reward", 0.0)),
                         int(row.get("set_size", 0)),
                         int(row.get("valid", 0)),
-                        float(row.get("step_bile_bonus", 0.0)),
-                        float(row.get("step_bootstrap_diversity", 0.0)),
-                        int(row.get("bootstrap_active", 0)),
-                        int(row.get("escape_active", 0)),
-                        row.get("bile_z_source", ""),
+                        float(row.get("step_mira_bonus", 0.0)),
+                        row.get("mira_z_source", ""),
                     ]
                 )
 
@@ -1147,14 +755,32 @@ class ParameterServer:
             "cumulative_target_efficiency": float(cumulative_efficiency),
         }
 
+    def replacement_reward(self, next_state):
+        embed = self.mira_learner.embed if self.reward_replacement.kind == 'knn' else None
+        return float(self.args.replacement_reward_scale) * float(
+            self.reward_replacement.observe([next_state], embed=embed)[0])
+
+    def record_mira_reward_state(self, worker_id, state):
+        self.mira_learner.record_reward_state(worker_id, state)
+
     def save_models(self, label="final"):
+        if getattr(self.args, 'output_profile', 'full') == 'csv':
+            return None
         target = self.model_dir / str(label)
         self.global_set_actor.save_model(target / "set_actor")
         self.global_operation_actor.save_model(target / "operation_actor")
         self.global_critic.save_model(target / "critic")
-        if self.global_bile is not None:
-            self.global_bile.save_models(target / "bile")
+        if self.global_mira is not None:
+            self.save_mira_snapshot(target / "mira")
+        if self.reward_replacement is not None:
+            self.reward_replacement.save(target / "mira")
         return str(target)
+
+    def save_final_models(self):
+        if self.mira_learner is not None:
+            self.mira_learner.close()
+            self.mira_learner.save_report(self.run_dir)
+        return self.save_models("final")
 
     def output_paths(self):
         return {
@@ -1173,6 +799,10 @@ class WorkerAgent:
         self.agent_id = int(agent_id)
         self.ps = ps_handle
         self.args = SimpleNamespace(**args_dict)
+        worker_seed = int(self.args.seed) * 1000 + self.agent_id
+        random.seed(worker_seed)
+        np.random.seed(worker_seed)
+        tf.random.set_seed(worker_seed)
         self.universe = load_fixed_universe(universe_dir)
         self.actions = _actions_from_labels(action_labels)
         self.env = CovertypeDualActorEnvironment(
@@ -1181,26 +811,28 @@ class WorkerAgent:
             episode_steps=self.args.steps,
             seed=int(self.args.seed) * 1000 + self.agent_id,
             candidate_slots=self.args.candidate_slots,
+            mira_descriptors=self.args.baseline in MIRA_BASELINES,
         )
-        self.is_bile = self.args.baseline in MIRA_BASELINES
+        self.is_mira = self.args.baseline in MIRA_BASELINES
         self.base_set_state_dim = self.env.set_state_dim
         self.base_operation_state_dim = self.env.operation_state_dim
-        self.set_state_dim = self.base_set_state_dim + (int(self.args.bile_latent_dim) if self.is_bile else 0)
-        self.operation_state_dim = self.base_operation_state_dim + (int(self.args.bile_latent_dim) if self.is_bile else 0)
+        self.set_state_dim = self.base_set_state_dim + (int(self.args.mira_latent_dim) if self.is_mira else 0)
+        self.operation_state_dim = self.base_operation_state_dim + (int(self.args.mira_latent_dim) if self.is_mira else 0)
         self.set_action_dim = self.env.set_action_dim
         self.operation_action_dim = self.env.operation_action_dim
         self.steps = int(self.args.lstm_steps)
         critic_units = _parse_units(self.args.critic_dense_units)
-        self.bile = None
-        if self.is_bile:
-            self.bile = BILEModule(
+        self.mira = None
+        if self.is_mira:
+            self.mira = MIRAModule(
                 state_dim=self.base_set_state_dim,
                 set_action_dim=self.set_action_dim,
                 operation_action_dim=self.operation_action_dim,
-                latent_dim=self.args.bile_latent_dim,
-                lr=self.args.bile_lr,
-                dense_units=self.args.bile_dense_units,
-                target_tau=self.args.bile_target_tau,
+                latent_dim=self.args.mira_latent_dim,
+                lr=self.args.mira_lr,
+                dense_units=self.args.mira_dense_units,
+                target_tau=self.args.mira_target_tau,
+                **representation_options(self.args),
             )
         self.set_actor = SetActor(
             self.set_state_dim,
@@ -1229,7 +861,6 @@ class WorkerAgent:
             lstm_units=self.args.critic_lstm_units,
         )
         self.set_op_counters = {}
-        self.bootstrap_visit_counts = {}
         self.sync_with_ps()
 
     def sync_with_ps(self):
@@ -1237,14 +868,14 @@ class WorkerAgent:
         self.set_actor.model.set_weights(weights["set"])
         self.operation_actor.model.set_weights(weights["op"])
         self.critic.model.set_weights(weights["critic"])
-        if self.bile is not None and weights.get("bile") is not None:
-            self.bile.set_weights(weights["bile"])
+        if self.mira is not None and weights.get("mira") is not None:
+            self.mira.set_weights(weights["mira"])
 
     def n_step_td_target(self, rewards, next_v_value, done):
         td_targets = np.zeros_like(rewards, dtype=np.float64)
         cumulative = 0.0 if done else float(np.squeeze(next_v_value))
         for idx in reversed(range(len(rewards))):
-            cumulative = float(self.args.gamma) * cumulative + float(rewards[idx])
+            cumulative = float(self.args.gamma) * cumulative + np.asarray(rewards[idx]).item()
             td_targets[idx] = cumulative
         return td_targets
 
@@ -1252,7 +883,7 @@ class WorkerAgent:
         return np.concatenate(items, axis=0)
 
     def augment_set_state(self, set_state, z):
-        if not self.is_bile:
+        if not self.is_mira:
             return np.asarray(set_state, dtype=np.float32)
         return np.concatenate(
             [
@@ -1262,7 +893,7 @@ class WorkerAgent:
         ).astype(np.float32)
 
     def augment_operation_state(self, operation_state, z):
-        if not self.is_bile:
+        if not self.is_mira:
             return np.asarray(operation_state, dtype=np.float32)
         return np.concatenate(
             [
@@ -1271,57 +902,30 @@ class WorkerAgent:
             ]
         ).astype(np.float32)
 
-    def sample_bile_direction(self):
-        sample = ray.get(self.ps.sample_bile_direction.remote())
+    def sample_mira_direction(self):
+        sample = ray.get(self.ps.sample_mira_direction.remote())
         return (
             np.asarray(sample["z"], dtype=np.float32),
-            bool(sample.get("bootstrap_active", False)),
-            bool(sample.get("escape_active", False)),
-            int(sample.get("zpool_size", 0)),
-            float(sample.get("recent_ext_avg", 0.0)),
-            float(sample.get("recent_success_ratio", 0.0)),
-            float(sample.get("recent_low_reward_ratio", 0.0)),
             str(sample.get("z_source", "random")),
         )
 
-    def refresh_bile_candidates(self, bile_z):
-        if self.args.baseline != "mira" or self.bile is None:
+    def refresh_mira_candidates(self, mira_z):
+        if not self.is_mira or self.mira is None:
             return
-        if bool(getattr(self.args, "disable_bile_candidate_rerank", False)):
+        if bool(getattr(self.args, "disable_mira_candidate_rerank", False)):
             return
-        self.env.rerank_candidates_by_bile(
-            self.bile,
-            bile_z,
-            family_keep=getattr(self.args, "bile_candidate_family_keep", 4),
+        self.env.rerank_candidates_by_mira(
+            self.mira,
+            mira_z,
+            family_keep=getattr(self.args, "mira_candidate_family_keep", 4),
         )
 
-    def apply_bile_candidate_prior(self, probs, zpool_size=0, z_source=""):
-        if self.args.baseline != "mira":
-            return probs
-        if bool(getattr(self.args, "disable_bile_candidate_rerank", False)):
-            return probs
-        min_zpool = int(getattr(self.args, "bile_candidate_prior_min_zpool", 20))
-        if int(zpool_size) < min_zpool:
-            return probs
-        weight = float(getattr(self.args, "bile_candidate_prior_weight", 0.25))
-        if "success" in str(z_source):
-            weight = float(getattr(self.args, "bile_candidate_prior_success_weight", 0.55))
-        weight = float(np.clip(weight, 0.0, 1.0))
-        if weight <= 0.0:
-            return probs
-        prior = self.env.bile_candidate_prior_probs(
-            temperature=getattr(self.args, "bile_candidate_prior_temperature", 0.18)
-        )
-        mixed = ((1.0 - weight) * np.asarray(probs, dtype=np.float64)) + (weight * prior)
-        return _masked_probs(mixed, np.asarray([1.0 if int(set_id) >= 0 else 0.0 for set_id in self.env.candidate_set_ids], dtype=np.float64))
 
-    def sample_action(self, probs, action_dim, fallback_action=0, random_prob=0.0):
+    def sample_action(self, probs, action_dim, fallback_action=0):
         probs = np.asarray(probs, dtype=np.float64)
         valid_actions = np.flatnonzero(np.isfinite(probs) & (probs > 0.0))
         if valid_actions.size == 0:
             return int(fallback_action)
-        if random_prob > 0.0 and np.random.random() < float(random_prob):
-            return int(np.random.choice(valid_actions))
         safe_probs = np.zeros(int(action_dim), dtype=np.float64)
         copy_len = min(int(action_dim), probs.size)
         safe_probs[:copy_len] = np.nan_to_num(probs[:copy_len], nan=0.0, posinf=0.0, neginf=0.0)
@@ -1332,23 +936,12 @@ class WorkerAgent:
         safe_probs /= total
         return int(np.random.choice(int(action_dim), p=safe_probs))
 
-    def embed_bile_state(self, state):
-        if self.bile is None:
+    def embed_mira_state(self, state):
+        if self.mira is None:
             return np.asarray(state, dtype=np.float32).reshape(-1)
-        phi = self.bile.embed(np.asarray(state, dtype=np.float32).reshape((1, self.base_set_state_dim)))
+        phi = self.mira.embed(np.asarray(state, dtype=np.float32).reshape((1, self.base_set_state_dim)))
         return np.asarray(phi[0], dtype=np.float32).reshape(-1)
 
-    def compute_bootstrap_diversity_reward(self, phi_s_next, episode_history_phi):
-        state_hash = hash(np.asarray(phi_s_next, dtype=np.float32).tobytes())
-        self.bootstrap_visit_counts[state_hash] = self.bootstrap_visit_counts.get(state_hash, 0) + 1
-        count_reward = 1.0 / np.sqrt(float(self.bootstrap_visit_counts[state_hash]))
-        if not episode_history_phi:
-            distance_reward = 1.0
-        else:
-            distances = [np.linalg.norm(phi_s_next - history_phi) for history_phi in episode_history_phi]
-            min_distance = float(np.min(distances)) if distances else 0.0
-            distance_reward = float(1.0 - np.exp(-float(self.args.bootstrap_distance_eta) * min_distance))
-        return float(0.5 * count_reward + 0.5 * distance_reward)
 
     def train_loop(self):
         while True:
@@ -1358,162 +951,90 @@ class WorkerAgent:
             try:
                 self._run_episode(int(episode))
             except Exception as error:
-                print(error)
-                traceback.print_tb(error.__traceback__)
-                print(f"Worker {self.agent_id} episode {episode} failed; continuing.", flush=True)
+                raise RuntimeError(f"Worker {self.agent_id} episode {episode} failed") from error
         return True
 
     def _run_episode(self, episode):
         self.sync_with_ps()
+        if self.mira is not None:
+            self.mira.begin_episode()
 
         set_state_batch = []
         operation_state_batch = []
         set_action_batch = []
         operation_action_batch = []
         reward_batch = []
-        bile_state_batch = []
-        bile_next_state_batch = []
-        bile_set_action_batch = []
-        bile_operation_action_batch = []
-        bile_reward_ext_batch = []
-        episode_transition_states = []
-        episode_transition_next_states = []
-        episode_transition_ext_rewards = []
-        episode_trajectory_states = []
-        episode_trajectory_next_states = []
-        episode_trajectory_scores = []
+        mira_state_batch = []
+        mira_next_state_batch = []
+        mira_set_action_batch = []
+        mira_operation_action_batch = []
+        mira_reward_components_batch = []
         episode_set_op_counters = {}
         episode_history_phi = []
-        if self.is_bile:
+        if self.is_mira:
             (
-                bile_z,
-                bootstrap_active,
-                escape_active,
-                bile_zpool_size,
-                _recent_ext_avg,
-                recent_success_ratio,
-                recent_low_reward_ratio,
-                bile_z_source,
-            ) = self.sample_bile_direction()
+                mira_z,
+                mira_z_source,
+            ) = self.sample_mira_direction()
         else:
-            bile_z = None
-            bootstrap_active = False
-            escape_active = False
-            bile_z_source = "none"
-            bile_zpool_size = 0
-            recent_success_ratio = 0.0
-            recent_low_reward_ratio = 0.0
+            mira_z = None
+            mira_z_source = "none"
 
         totals = _zero_totals()
-        totals["bile_z_source"] = bile_z_source
-        totals["bile_zpool_size"] = bile_zpool_size
-        totals["bootstrap_active"] = int(bootstrap_active)
-        totals["escape_active"] = int(escape_active)
-        totals["recent_success_ratio"] = float(recent_success_ratio)
-        totals["recent_low_reward_ratio"] = float(recent_low_reward_ratio)
+        totals["mira_z_source"] = mira_z_source
         set_action_steps = [np.zeros(self.set_state_dim, dtype=np.float32) for _ in range(self.steps)]
         operation_action_steps = [np.zeros(self.operation_state_dim, dtype=np.float32) for _ in range(self.steps)]
 
         set_state = self.env.reset()
-        self.refresh_bile_candidates(bile_z)
+        self.refresh_mira_candidates(mira_z)
         set_state = self.env.set_state
-        segment_anchor_state = np.asarray(set_state, dtype=np.float32).reshape(-1).tolist()
-        segment_positive_reward = 0.0
         set_action_steps.pop(0)
-        set_action_steps.append(self.augment_set_state(set_state, bile_z))
-        if self.is_bile:
-            episode_history_phi.append(self.embed_bile_state(set_state))
+        set_action_steps.append(self.augment_set_state(set_state, mira_z))
+        if self.is_mira:
+            episode_history_phi.append(self.embed_mira_state(set_state))
         done = False
-        forced_random_action_prob = (
-            float(self.args.escape_random_action_prob)
-            if escape_active
-            else (float(self.args.bootstrap_random_action_prob) if bootstrap_active else 0.0)
-        )
 
         while not done:
-            set_probs = self.set_actor.model.predict(
+            set_probs = fast_predict(self.set_actor.model,
                 np.asarray(set_action_steps, dtype=np.float32).reshape((1, self.steps, self.set_state_dim)),
-                verbose=0,
             )[0]
             set_probs = self.env.fix_possible_set_action_probs(set_probs)
-            set_probs = self.apply_bile_candidate_prior(
-                set_probs,
-                zpool_size=bile_zpool_size,
-                z_source=bile_z_source,
-            )
             set_action = self.sample_action(
                 set_probs,
                 self.set_action_dim,
                 fallback_action=0,
-                random_prob=forced_random_action_prob,
             )
 
-            operation_state = self.augment_operation_state(self.env.get_operation_state(set_action), bile_z)
+            operation_state = self.augment_operation_state(self.env.get_operation_state(set_action), mira_z)
             operation_action_steps.pop(0)
             operation_action_steps.append(operation_state)
-            op_probs = self.operation_actor.model.predict(
+            op_probs = fast_predict(self.operation_actor.model,
                 np.asarray(operation_action_steps, dtype=np.float32).reshape((1, self.steps, self.operation_state_dim)),
-                verbose=0,
             )[0]
             op_probs = self.env.fix_possible_operation_action_probs(set_action, op_probs)
             operation_action = self.sample_action(
                 op_probs,
                 self.operation_action_dim,
                 fallback_action=0,
-                random_prob=forced_random_action_prob,
             )
 
             next_set_state, r_ext, r_int, done, set_op_pair, metrics = self.env.step(set_action, operation_action)
-            self.refresh_bile_candidates(bile_z)
+            self.refresh_mira_candidates(mira_z)
             next_set_state = self.env.set_state
             r_ext = float(r_ext)
             r_int = float(r_int)
-            phi_s_t = self.embed_bile_state(set_state) if self.is_bile else np.asarray(set_state, dtype=np.float32).flatten()
-            phi_s_next = self.embed_bile_state(next_set_state) if self.is_bile else np.asarray(next_set_state, dtype=np.float32).flatten()
+            phi_s_t = self.embed_mira_state(set_state) if self.is_mira else np.asarray(set_state, dtype=np.float32).flatten()
+            phi_s_next = self.embed_mira_state(next_set_state) if self.is_mira else np.asarray(next_set_state, dtype=np.float32).flatten()
             r_coh = _coherency(phi_s_t, phi_s_next)
             r_div = _episode_diversity(phi_s_next, episode_history_phi, eta=self.args.diversity_eta)
-            bile_bonus = 0.0
-            bootstrap_bonus = 0.0
-            if self.bile is not None:
-                bile_bonus = self.bile.compute_bonus(
-                    set_state,
-                    next_set_state,
-                    bile_z,
-                    clip_value=self.args.bile_bonus_clip,
-                )
-                r_div = bile_bonus
-                bootstrap_bonus = (
-                    self.compute_bootstrap_diversity_reward(phi_s_next, episode_history_phi)
-                    if bootstrap_active and self.args.baseline == "mira"
-                    else 0.0
-                )
-                if escape_active:
-                    bootstrap_bonus *= float(self.args.escape_bootstrap_scale)
-                if self.args.baseline == "mira":
-                    episode_transition_states.append(np.asarray(set_state, dtype=np.float32).reshape(-1).tolist())
-                    episode_transition_next_states.append(np.asarray(next_set_state, dtype=np.float32).reshape(-1).tolist())
-                    success_quality_score = 0.0
-                    if r_ext > float(self.args.bile_min_success_reward):
-                        success_quality_score = _success_quality_score(
-                            r_ext,
-                            metrics.get("set_size", 0),
-                            self.args,
-                        )
-                    episode_transition_ext_rewards.append(float(success_quality_score))
-                    if r_ext > float(self.args.bile_min_success_reward):
-                        segment_positive_reward += max(float(r_ext), 0.0)
-                        trajectory_score = max(
-                            float(r_ext),
-                            segment_positive_reward * float(self.args.bile_success_trajectory_score_scale),
-                        )
-                        trajectory_quality_score = _success_quality_score(
-                            trajectory_score,
-                            metrics.get("set_size", 0),
-                            self.args,
-                        )
-                        episode_trajectory_states.append(list(segment_anchor_state))
-                        episode_trajectory_next_states.append(np.asarray(next_set_state, dtype=np.float32).reshape(-1).tolist())
-                        episode_trajectory_scores.append(float(trajectory_quality_score))
+            mira_bonus = 0.0
+            if self.mira is not None:
+                mira_bonus = select_bonus(
+                    getattr(self.args, 'exploration_reward', 'directional'),
+                    lambda: self.mira.compute_bonus(set_state, next_set_state, mira_z,
+                                                   clip_value=self.args.mira_bonus_clip),
+                    lambda: float(ray.get(self.ps.replacement_reward.remote(next_set_state))))
+                r_div = mira_bonus
             episode_history_phi.append(phi_s_next)
 
             counter_curiosity = _counter_curiosity(
@@ -1523,41 +1044,29 @@ class WorkerAgent:
                 episode_steps=self.args.steps,
             )
             exploration_reward = 0.0
-            effective_alpha = float(self.args.alpha)
-            if self.args.baseline == "mira":
+            if self.is_mira:
                 exploration_reward = (
                     float(self.args.w_int) * float(r_int)
-                    + float(self.args.w_bile) * float(bile_bonus)
-                    + float(self.args.w_bootstrap) * float(bootstrap_bonus)
+                    + float(self.args.w_mira) * float(mira_bonus)
                 )
-                effective_alpha = float(self.args.escape_alpha) if escape_active else float(self.args.alpha)
-                step_reward = (float(self.args.w_ext) * float(r_ext)) + (effective_alpha * exploration_reward)
-            else:
-                step_reward = _training_reward(
-                    self.args.baseline,
-                    r_ext,
-                    r_int,
-                    counter_curiosity,
-                    r_coh,
-                    r_div,
-                    bile_bonus,
-                    self.args,
-                )
+            step_reward = _training_reward(self.args.baseline, r_ext, r_int,
+                                            counter_curiosity, r_coh, r_div, mira_bonus, self.args)
             next_set_action_steps = list(set_action_steps)
             next_set_action_steps.pop(0)
-            next_set_action_steps.append(self.augment_set_state(next_set_state, bile_z))
+            next_set_action_steps.append(self.augment_set_state(next_set_state, mira_z))
 
             reward_batch.append(np.reshape(step_reward, (1, 1)))
             set_state_batch.append(np.asarray(set_action_steps, dtype=np.float32).reshape((1, self.steps, self.set_state_dim)))
             set_action_batch.append(np.reshape(set_action, (1, 1)))
             operation_state_batch.append(np.asarray(operation_action_steps, dtype=np.float32).reshape((1, self.steps, self.operation_state_dim)))
             operation_action_batch.append(np.reshape(operation_action, (1, 1)))
-            if self.is_bile:
-                bile_state_batch.append(np.asarray(set_state, dtype=np.float32).reshape((1, self.base_set_state_dim)))
-                bile_next_state_batch.append(np.asarray(next_set_state, dtype=np.float32).reshape((1, self.base_set_state_dim)))
-                bile_set_action_batch.append(np.reshape(set_action, (1, 1)))
-                bile_operation_action_batch.append(np.reshape(operation_action, (1, 1)))
-                bile_reward_ext_batch.append(np.reshape(r_ext, (1, 1)))
+            if self.is_mira:
+                mira_state_batch.append(np.asarray(set_state, dtype=np.float32).reshape((1, self.base_set_state_dim)))
+                mira_next_state_batch.append(np.asarray(next_set_state, dtype=np.float32).reshape((1, self.base_set_state_dim)))
+                mira_set_action_batch.append(np.reshape(set_action, (1, 1)))
+                mira_operation_action_batch.append(np.reshape(operation_action, (1, 1)))
+                metric_reward = [0.0 if self.args.baseline == "mira_no_ext" else r_ext, r_int]
+                mira_reward_components_batch.append(np.reshape(metric_reward, (1, 2)))
 
             _add_totals(
                 totals,
@@ -1568,8 +1077,7 @@ class WorkerAgent:
                 r_coh,
                 r_div,
                 step_reward,
-                bile_bonus,
-                bootstrap_bonus,
+                mira_bonus,
                 exploration_reward,
             )
             if self.env.exploration_trace_rows:
@@ -1577,11 +1085,8 @@ class WorkerAgent:
                 self.env.exploration_trace_rows[-1]["step_coherency"] = float(r_coh)
                 self.env.exploration_trace_rows[-1]["step_diversity"] = float(r_div)
                 self.env.exploration_trace_rows[-1]["step_total_reward"] = float(step_reward)
-                self.env.exploration_trace_rows[-1]["step_bile_bonus"] = float(bile_bonus)
-                self.env.exploration_trace_rows[-1]["step_bootstrap_diversity"] = float(bootstrap_bonus)
-                self.env.exploration_trace_rows[-1]["bootstrap_active"] = int(bootstrap_active)
-                self.env.exploration_trace_rows[-1]["escape_active"] = int(escape_active)
-                self.env.exploration_trace_rows[-1]["bile_z_source"] = bile_z_source
+                self.env.exploration_trace_rows[-1]["step_mira_bonus"] = float(mira_bonus)
+                self.env.exploration_trace_rows[-1]["mira_z_source"] = mira_z_source
 
             if len(set_state_batch) >= int(self.args.update_interval) or done:
                 set_states = self.list_to_batch(set_state_batch)
@@ -1589,152 +1094,72 @@ class WorkerAgent:
                 operation_states = self.list_to_batch(operation_state_batch)
                 operation_actions = self.list_to_batch(operation_action_batch)
                 rewards = self.list_to_batch(reward_batch)
-                next_v_value = self.critic.model.predict(
+                next_v_value = fast_predict(self.critic.model,
                     np.asarray(next_set_action_steps, dtype=np.float32).reshape((1, self.steps, self.set_state_dim)),
-                    verbose=0,
                 )
                 td_targets = self.n_step_td_target(rewards, next_v_value, done)
-                advantages = td_targets - self.critic.model.predict(set_states, verbose=0)
+                advantages = td_targets - fast_predict(self.critic.model, set_states)
 
                 set_grads, _ = self.set_actor.get_gradients(set_states, set_actions, advantages)
                 op_grads, _ = self.operation_actor.get_gradients(operation_states, operation_actions, advantages)
                 critic_grads, _ = self.critic.get_gradients(set_states, td_targets)
-                bile_encoder_grads = None
-                bile_dynamics_grads = None
-                if self.bile is not None and bile_state_batch:
-                    local_bile_states = self.list_to_batch(bile_state_batch)
-                    local_bile_set_actions = self.list_to_batch(bile_set_action_batch)
-                    local_bile_operation_actions = self.list_to_batch(bile_operation_action_batch)
-                    local_bile_rewards_ext = self.list_to_batch(bile_reward_ext_batch)
-                    local_bile_next_states = self.list_to_batch(bile_next_state_batch)
-                    bile_pair_sample = ray.get(
-                        self.ps.update_and_sample_bile_batch.remote(
-                            local_bile_states,
-                            local_bile_set_actions,
-                            local_bile_operation_actions,
-                            local_bile_rewards_ext,
-                            local_bile_next_states,
-                            int(episode),
-                        )
-                    )
-                    totals["bile_pair_source"] = str(bile_pair_sample.get("source", "local"))
-                    totals["bile_replay_size"] = int(bile_pair_sample.get("buffer_size", 0))
-                    if bile_pair_sample.get("source") == "replay_random_perm":
-                        train_bile_states = np.asarray(bile_pair_sample["states"], dtype=np.float32)
-                        train_bile_set_actions = np.asarray(bile_pair_sample["set_actions"], dtype=np.int64)
-                        train_bile_operation_actions = np.asarray(bile_pair_sample["operation_actions"], dtype=np.int64)
-                        train_bile_rewards_ext = np.asarray(bile_pair_sample["rewards_ext"], dtype=np.float32)
-                        train_bile_next_states = np.asarray(bile_pair_sample["next_states"], dtype=np.float32)
-                        pair_indices = np.asarray(bile_pair_sample["pair_indices"], dtype=np.int64)
-                    else:
-                        train_bile_states = local_bile_states
-                        train_bile_set_actions = local_bile_set_actions
-                        train_bile_operation_actions = local_bile_operation_actions
-                        train_bile_rewards_ext = local_bile_rewards_ext
-                        train_bile_next_states = local_bile_next_states
-                        pair_indices = None
-                    bile_stats = self.bile.get_gradients(
-                        train_bile_states,
-                        train_bile_set_actions,
-                        train_bile_operation_actions,
-                        train_bile_rewards_ext,
-                        train_bile_next_states,
-                        pair_indices=pair_indices,
-                        gamma=self.args.gamma,
-                        beta_pe=self.args.bile_beta_pe,
-                        metric_clip=self.args.bile_metric_clip,
-                        phi_weight=self.args.bile_phi_weight,
-                        dyn_weight=self.args.bile_dyn_weight,
-                        use_reward_diff=self.args.baseline == "mira",
-                    )
-                    if bile_stats is not None:
-                        bile_encoder_grads = [
-                            grad.numpy() if grad is not None else None
-                            for grad in bile_stats["encoder_grads"]
-                        ]
-                        bile_dynamics_grads = [
-                            grad.numpy() if grad is not None else None
-                            for grad in bile_stats["dynamics_grads"]
-                        ]
-                        for key in (
-                            "phi_loss",
-                            "dyn_loss",
-                            "prediction_error",
-                            "mean_d_phi",
-                            "mean_metric_target",
-                        ):
-                            totals[f"bile_{key}"] += float(bile_stats[key])
-                        totals["bile_update_count"] += 1
+                mira_encoder_grads = None
+                mira_dynamics_grads = None
+                if self.mira is not None and mira_state_batch:
+                    mira_stats = ray.get(self.ps.update_and_sample_mira_batch.remote(
+                        self.list_to_batch(mira_state_batch), self.list_to_batch(mira_set_action_batch),
+                        self.list_to_batch(mira_operation_action_batch), self.list_to_batch(mira_reward_components_batch),
+                        self.list_to_batch(mira_next_state_batch), episode))
+                    totals['mira_pair_source'] = 'async_replay'
+                    totals['mira_replay_size'] = mira_stats['replay_size']
+                    for key in ('phi_loss','dyn_loss','prediction_error','mean_d_phi','mean_metric_target'):
+                        totals['mira_'+key] += mira_stats[key]
+                    totals['mira_update_count'] += 1
                 new_weights = ray.get(
                     self.ps.apply_gradients_and_get_weights.remote(
                         [grad.numpy() if grad is not None else None for grad in set_grads],
                         [grad.numpy() if grad is not None else None for grad in op_grads],
                         [grad.numpy() if grad is not None else None for grad in critic_grads],
-                        bile_encoder_grads,
-                        bile_dynamics_grads,
+                        mira_encoder_grads,
+                        mira_dynamics_grads,
                     )
                 )
                 self.set_actor.model.set_weights(new_weights["set"])
                 self.operation_actor.model.set_weights(new_weights["op"])
                 self.critic.model.set_weights(new_weights["critic"])
-                if self.bile is not None and new_weights.get("bile") is not None:
-                    self.bile.set_weights(new_weights["bile"])
+                if self.mira is not None and new_weights.get("mira") is not None:
+                    self.mira.set_weights(new_weights["mira"])
                 set_state_batch = []
                 operation_state_batch = []
                 set_action_batch = []
                 operation_action_batch = []
                 reward_batch = []
-                bile_state_batch = []
-                bile_next_state_batch = []
-                bile_set_action_batch = []
-                bile_operation_action_batch = []
-                bile_reward_ext_batch = []
+                mira_state_batch = []
+                mira_next_state_batch = []
+                mira_set_action_batch = []
+                mira_operation_action_batch = []
+                mira_reward_components_batch = []
 
             set_state = next_set_state
             set_action_steps = next_set_action_steps
 
+        if self.mira is not None:
+            ray.get(self.ps.record_mira_reward_state.remote(
+                self.agent_id, self.mira.reward_moments.state()))
         for pair, count in episode_set_op_counters.items():
             self.set_op_counters[pair] = self.set_op_counters.get(pair, 0) + count
 
-        if totals.get("bile_update_count", 0) > 0:
-            update_count = float(totals["bile_update_count"])
+        if totals.get("mira_update_count", 0) > 0:
+            update_count = float(totals["mira_update_count"])
             for key in (
-                "bile_phi_loss",
-                "bile_dyn_loss",
-                "bile_prediction_error",
-                "bile_mean_d_phi",
-                "bile_mean_metric_target",
+                "mira_phi_loss",
+                "mira_dyn_loss",
+                "mira_prediction_error",
+                "mira_mean_d_phi",
+                "mira_mean_metric_target",
             ):
                 totals[key] = float(totals[key]) / update_count
 
-        success_candidate_states = episode_transition_states + episode_trajectory_states
-        success_candidate_next_states = episode_transition_next_states + episode_trajectory_next_states
-        success_candidate_scores = episode_transition_ext_rewards + episode_trajectory_scores
-        success_candidate_kinds = (
-            ["local"] * len(episode_transition_states)
-            + ["trajectory"] * len(episode_trajectory_states)
-        )
-        success_states, success_next_states, success_scores, success_kinds = _select_success_transitions(
-            success_candidate_states,
-            success_candidate_next_states,
-            success_candidate_scores,
-            gamma=self.args.gamma,
-            min_score=self.args.bile_success_quality_min_score,
-            kinds=success_candidate_kinds,
-        )
-
-        if success_states:
-            totals["bile_zpool_size"] = int(
-                ray.get(
-                    self.ps.update_bile_success_transitions.remote(
-                        success_states,
-                        success_next_states,
-                        success_scores,
-                        success_kinds,
-                        int(episode),
-                    )
-                )
-            )
 
         trace_rows, state_rows = self.env.consume_exploration_logs()
         stats = ray.get(
@@ -1755,18 +1180,20 @@ class WorkerAgent:
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(description="Run Covertype full Ray/TensorFlow dual-actor A3C baselines.")
-    parser.add_argument("--baseline", choices=sorted(BASELINES), default=None)
+    from revision_support.covertype_defaults import CovertypeArgumentParser
+    parser = CovertypeArgumentParser(description="Run Covertype full Ray/TensorFlow dual-actor A3C baselines.")
+    parser.add_argument("--baseline", choices=sorted(BASELINES), default="mira")
     parser.add_argument("--csv_path", default="covertype.csv")
-    parser.add_argument("--target_set", default="fixed_seed_1")
+    parser.add_argument("--target_set", default=None)
     parser.add_argument("--target_seed", type=int, default=None)
     parser.add_argument("--target_size", type=int, default=1000)
     parser.add_argument("--episodes", type=int, default=1000)
     parser.add_argument("--steps", type=int, default=250)
-    parser.add_argument("--workers", type=int, default=12)
+    parser.add_argument("--workers", type=int, default=14)
     parser.add_argument("--seed", type=int, default=1)
+    add_ablation_arguments(parser, backend='covertype')
     parser.add_argument("--n_bins", type=int, default=10)
-    parser.add_argument("--n_sets", type=int, default=50000)
+    parser.add_argument("--n_sets", type=int, default=100000)
     parser.add_argument("--min_set_size", type=int, default=10)
     parser.add_argument("--max_set_size", type=int, default=200000)
     parser.add_argument("--preprocess_name", default=None)
@@ -1783,79 +1210,30 @@ def build_parser():
     parser.add_argument("--critic_dense_units", default="512,256,128")
     parser.add_argument("--critic_lstm_units", type=int, default=128)
     parser.add_argument("--candidate_slots", type=int, default=10)
-    parser.add_argument("--disable_bile_candidate_rerank", action="store_true")
-    parser.add_argument("--bile_candidate_family_keep", type=int, default=4)
-    parser.add_argument("--bile_candidate_prior_weight", type=float, default=0.25)
-    parser.add_argument("--bile_candidate_prior_success_weight", type=float, default=0.55)
-    parser.add_argument("--bile_candidate_prior_temperature", type=float, default=0.18)
-    parser.add_argument("--bile_candidate_prior_min_zpool", type=int, default=20)
+    parser.add_argument("--disable_mira_candidate_rerank", action="store_true")
+    parser.add_argument("--mira_candidate_family_keep", type=int, default=4)
     parser.add_argument("--counter_curiosity_ratio", type=float, default=0.25)
     parser.add_argument("--alpha", type=float, default=0.5)
-    parser.add_argument("--w_ext", type=float, default=8.0)
-    parser.add_argument("--w_int", type=float, default=0.2)
-    parser.add_argument("--w_bile", type=float, default=1.0)
-    parser.add_argument("--w_bootstrap", type=float, default=1.0)
-    parser.add_argument("--w_coh", type=float, default=1.0)
-    parser.add_argument("--w_div", type=float, default=1.0)
+    parser.add_argument("--w_ext", type=float, default=None)
+    parser.add_argument("--w_int", type=float, default=None)
+    parser.add_argument("--w_mira", type=float, default=1.0)
+    parser.add_argument("--w_coh", type=float, default=0.1)
+    parser.add_argument("--w_div", type=float, default=0.1)
     parser.add_argument("--diversity_eta", type=float, default=0.1)
-    parser.add_argument("--bile_latent_dim", type=int, default=16)
-    parser.add_argument("--bile_lr", type=float, default=0.0003)
-    parser.add_argument("--bile_dense_units", type=int, default=256)
-    parser.add_argument("--bile_beta_pe", type=float, default=1.0)
-    parser.add_argument("--bile_metric_clip", type=float, default=10.0)
-    parser.add_argument("--bile_bonus_clip", type=float, default=1.0)
-    parser.add_argument("--bile_target_tau", type=float, default=0.01)
-    parser.add_argument("--bile_phi_weight", type=float, default=1.0)
-    parser.add_argument("--bile_dyn_weight", type=float, default=1.0)
-    parser.add_argument("--bile_pair_warmup_episodes", type=int, default=100)
-    parser.add_argument("--bile_replay_buffer_size", type=int, default=50000)
-    parser.add_argument("--bile_phi_batch_size", type=int, default=128)
-    parser.add_argument("--bile_min_replay_size", type=int, default=256)
-    parser.add_argument("--bile_success_prob", type=float, default=0.6)
-    parser.add_argument("--bile_orthogonal_prob", type=float, default=0.3)
-    parser.add_argument("--bile_success_prob_min", type=float, default=0.35)
-    parser.add_argument("--bile_success_prob_decay_episodes", type=int, default=600)
-    parser.add_argument("--bile_success_pool_size", type=int, default=256)
-    parser.add_argument("--bile_success_noise_scale", type=float, default=0.2)
-    parser.add_argument("--bile_success_mix_random_prob", type=float, default=0.25)
-    parser.add_argument("--bile_success_mix_random_weight", type=float, default=0.35)
-    parser.add_argument("--bile_success_trajectory_score_scale", type=float, default=1.0)
-    parser.add_argument("--bile_min_success_reward", type=float, default=1.0)
-    parser.add_argument("--bile_success_quality_mode", choices=["none", "size_penalty"], default="size_penalty")
-    parser.add_argument("--bile_success_size_penalty_power", type=float, default=1.0)
-    parser.add_argument("--bile_success_quality_min_score", type=float, default=0.0)
-    parser.add_argument("--bile_success_episode_top_k", type=int, default=24)
-    parser.add_argument("--bile_success_episode_min_fraction", type=float, default=0.25)
-    parser.add_argument("--bile_success_recent_window", type=int, default=150)
-    parser.add_argument("--bile_success_recent_fraction", type=float, default=0.35)
-    parser.add_argument("--bile_success_recency_half_life", type=float, default=300.0)
-    parser.add_argument("--bile_success_score_clip", type=float, default=150.0)
-    parser.add_argument("--bile_success_weight_power", type=float, default=0.5)
-    parser.add_argument("--bootstrap_window", type=int, default=15)
-    parser.add_argument("--bootstrap_ext_threshold", type=float, default=10.0)
-    parser.add_argument("--bootstrap_success_threshold", type=float, default=100.0)
-    parser.add_argument("--bootstrap_success_ratio_threshold", type=float, default=0.30)
-    parser.add_argument("--bootstrap_use_success_ratio", action="store_true")
-    parser.add_argument("--bootstrap_zpool_threshold", type=int, default=20)
-    parser.add_argument("--bootstrap_distance_eta", type=float, default=0.1)
-    parser.add_argument("--escape_window", type=int, default=20)
-    parser.add_argument("--escape_ext_threshold", type=float, default=10.0)
-    parser.add_argument("--escape_low_reward_threshold", type=float, default=10.0)
-    parser.add_argument("--escape_low_ratio_threshold", type=float, default=0.70)
-    parser.add_argument("--escape_success_prob", type=float, default=0.80)
-    parser.add_argument("--escape_orthogonal_prob", type=float, default=0.80)
-    parser.add_argument("--escape_random_z_prob", type=float, default=0.20)
-    parser.add_argument("--escape_min_success_score", type=float, default=5.0)
-    parser.add_argument("--escape_stale_success_ratio_threshold", type=float, default=0.05)
-    parser.add_argument("--escape_stale_success_scale", type=float, default=0.35)
-    parser.add_argument("--escape_stale_orthogonal_prob", type=float, default=0.85)
-    parser.add_argument("--escape_stale_random_z_prob", type=float, default=0.35)
-    parser.add_argument("--escape_low_success_scale", type=float, default=0.60)
-    parser.add_argument("--escape_low_random_z_prob", type=float, default=0.30)
-    parser.add_argument("--escape_random_action_prob", type=float, default=0.20)
-    parser.add_argument("--bootstrap_random_action_prob", type=float, default=0.05)
-    parser.add_argument("--escape_alpha", type=float, default=0.10)
-    parser.add_argument("--escape_bootstrap_scale", type=float, default=0.20)
+    parser.add_argument("--mira_latent_dim", type=int, default=16)
+    parser.add_argument("--mira_lr", type=float, default=0.0003)
+    parser.add_argument("--mira_dense_units", type=int, default=256)
+    parser.add_argument("--mira_lambda_ana", type=float, default=1.0)
+    parser.add_argument("--mira_mc_samples", type=int, default=4)
+    parser.add_argument("--mira_bonus_clip", type=float, default=1.0)
+    parser.add_argument("--mira_target_tau", type=float, default=0.01)
+    parser.add_argument("--mira_phi_weight", type=float, default=1.0)
+    parser.add_argument("--mira_dyn_weight", type=float, default=1.0)
+    parser.add_argument("--mira_pair_warmup_episodes", type=int, default=0, choices=(0,))
+    parser.add_argument("--mira_replay_buffer_size", type=int, default=50000)
+    parser.add_argument("--mira_phi_batch_size", type=int, default=128)
+    parser.add_argument("--mira_min_replay_size", type=int, default=256)
+    parser.add_argument("--mira_orthogonal_prob", type=float, default=0.0, choices=(0.0,))
     parser.add_argument("--name", default="")
     parser.add_argument("--output_prefix", default=None)
     parser.add_argument("--output_dir", default="outputs")
@@ -1868,10 +1246,26 @@ def build_parser():
 
 
 def run(args):
+    if args.baseline in MIRA_BASELINES:
+        args.mira_core_version = "mira_grounded_latent_v2"
+        if args.resume_model_dir or args.resume_start_episode:
+            raise ValueError("MIRA v2 requires a fresh run; checkpoint continuation is not supported")
+    validate_ablation_args(args)
+    if args.baseline == "mira_no_ext" and args.resume_model_dir:
+        raise ValueError('MIRA w/o Ext requires fresh weights; a checkpoint may contain task reward information')
+    root_dir = Path(__file__).resolve().parents[1]
+    if ablation_label(args):
+        base = args.output_prefix or f"{args.baseline}_seed{args.seed}_full_a3c"
+        args.output_prefix = base + "_" + ablation_label(args)
+        args.name = args.output_prefix
+        ablation_output_dir = Path(args.output_dir)
+        if not ablation_output_dir.is_absolute():
+            ablation_output_dir = root_dir / ablation_output_dir
+        if (ablation_output_dir / args.output_prefix).exists():
+            raise ValueError('Ablation output already exists; choose a fresh --output_prefix')
     if args.baseline not in BASELINES:
         raise ValueError(f"Missing or unsupported full A3C baseline: {args.baseline}. Use one of {sorted(BASELINES)}.")
 
-    root_dir = Path(__file__).resolve().parents[1]
     csv_path = Path(args.csv_path)
     if not csv_path.is_absolute():
         csv_path = root_dir / csv_path
@@ -1900,6 +1294,7 @@ def run(args):
         max_set_size=args.max_set_size,
         preprocess_name=args.preprocess_name,
         force=args.force_preprocess,
+        csv_path=csv_path,
     )
 
     output_dir = Path(args.output_dir)
@@ -1907,6 +1302,12 @@ def run(args):
         output_dir = root_dir / output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     args.output_dir = str(output_dir)
+    if ablation_label(args):
+        # Reserve atomically before PCA writes its artifacts. Only this driver
+        # can authorize the parameter server to open the same run directory.
+        prepared = output_dir / (args.output_prefix or args.name)
+        prepared.mkdir(parents=True, exist_ok=False)
+        args._prepared_run_dir = str(prepared.resolve())
     args.csv_path = str(csv_path)
     args.target_path = str(target_path)
     args.fixed_universe_dir = str(universe_dir)
@@ -1919,15 +1320,17 @@ def run(args):
         episode_steps=args.steps,
         seed=args.seed,
         candidate_slots=args.candidate_slots,
+        mira_descriptors=args.baseline in MIRA_BASELINES,
     )
     dummy_env.reset()
+    args.mira_statistic_indices = getattr(dummy_env, 'statistic_indices', [])
     args.base_set_state_dim = int(dummy_env.set_state_dim)
     args.base_operation_state_dim = int(dummy_env.operation_state_dim)
     set_state_dim = int(dummy_env.set_state_dim)
     operation_state_dim = int(dummy_env.operation_state_dim)
     if args.baseline in MIRA_BASELINES:
-        set_state_dim += int(args.bile_latent_dim)
-        operation_state_dim += int(args.bile_latent_dim)
+        set_state_dim += int(args.mira_latent_dim)
+        operation_state_dim += int(args.mira_latent_dim)
 
     if not ray.is_initialized():
         ray_kwargs = {
@@ -1943,6 +1346,9 @@ def run(args):
             ray_kwargs["_temp_dir"] = args.ray_temp_dir
         ray.init(**ray_kwargs)
 
+    from revision_support.pca_training import prepare_in_budget
+    pca_records = prepare_in_budget(dummy_env, args, 'covertype',
+        output_dir / (args.output_prefix or args.name))
     args_dict = vars(args).copy()
     ps = ParameterServer.remote(
         set_state_dim,
@@ -1951,13 +1357,15 @@ def run(args):
         dummy_env.operation_action_dim,
         args_dict,
     )
+    if pca_records:
+        ray.get(ps.record_pca_collection.remote(pca_records))
+        pca_records = []
     action_labels = [action.label for action in actions]
     workers = [
         WorkerAgent.remote(str(universe_dir), action_labels, ps, worker_id, args_dict)
         for worker_id in range(max(1, int(args.workers)))
     ]
-    ray.get([worker.train_loop.remote() for worker in workers])
-    ray.get(ps.save_models.remote("final"))
+    complete_training(ray, ps, workers, [worker.train_loop.remote() for worker in workers])
     return ray.get(ps.output_paths.remote())
 
 
@@ -2057,17 +1465,17 @@ def _training_reward(
     counter_curiosity,
     r_coh,
     r_div,
-    bile_bonus,
+    mira_bonus,
     args,
 ):
     if baseline == "pure_a3c":
         return float(args.w_ext) * float(r_ext)
-    if baseline == "paper_a3c":
+    if baseline == "dora":
         ratio = float(args.counter_curiosity_ratio)
         return (1.0 - ratio) * float(r_ext) + ratio * float(counter_curiosity)
-    if baseline == "atena":
+    if baseline == "atena_no_ext":
         return float(args.w_int) * float(r_int) + float(args.w_coh) * float(r_coh) + float(args.w_div) * float(r_div)
-    if baseline == "atena_extrinsic":
+    if baseline == "atena":
         return (
             float(args.w_ext) * float(r_ext)
             + float(args.w_int) * float(r_int)
@@ -2075,53 +1483,13 @@ def _training_reward(
             + float(args.w_div) * float(r_div)
         )
     if baseline == "mira":
-        return float(args.w_ext) * float(r_ext) + float(args.alpha) * float(bile_bonus)
+        return float(args.w_ext) * float(r_ext) + float(args.alpha) * (
+            float(args.w_int) * float(r_int) + float(args.w_mira) * float(mira_bonus))
     if baseline == "mira_no_ext":
-        return float(args.alpha) * float(bile_bonus)
+        return float(args.alpha) * (
+            float(args.w_int) * float(r_int) + float(args.w_mira) * float(mira_bonus)
+        )
     raise ValueError(f"Unsupported baseline: {baseline}")
-
-
-def _success_quality_score(score, set_size, args):
-    score = float(score)
-    mode = getattr(args, "bile_success_quality_mode", "size_penalty")
-    if mode == "none":
-        return score
-    if mode == "size_penalty":
-        safe_size = max(float(set_size), 1.0)
-        power = float(getattr(args, "bile_success_size_penalty_power", 1.0))
-        denom = max(np.log1p(safe_size) ** power, 1e-6)
-        return score / denom
-    return score
-
-
-def _select_success_transitions(
-    states,
-    next_states,
-    rewards_ext,
-    gamma,
-    min_score,
-    kinds=None,
-    top_k=None,
-    min_fraction=0.0,
-):
-    if not states:
-        return [], [], [], []
-
-    _ = gamma, top_k, min_fraction
-    kinds = list(kinds or ["local"] * len(states))
-    selected_states = []
-    selected_next_states = []
-    selected_scores = []
-    selected_kinds = []
-    for idx, reward_ext in enumerate(rewards_ext):
-        score = float(reward_ext)
-        if score <= float(min_score):
-            continue
-        selected_states.append(states[idx])
-        selected_next_states.append(next_states[idx])
-        selected_scores.append(score)
-        selected_kinds.append(str(kinds[idx] if idx < len(kinds) else "local"))
-    return selected_states, selected_next_states, selected_scores, selected_kinds
 
 
 def _zero_totals():
@@ -2135,23 +1503,17 @@ def _zero_totals():
         "diversity": 0.0,
         "total_reward": 0.0,
         "valid_steps": 0,
-        "bile_bonus": 0.0,
-        "bootstrap_diversity": 0.0,
+        "mira_bonus": 0.0,
         "exploration_reward": 0.0,
-        "bile_phi_loss": 0.0,
-        "bile_dyn_loss": 0.0,
-        "bile_prediction_error": 0.0,
-        "bile_mean_d_phi": 0.0,
-        "bile_mean_metric_target": 0.0,
-        "bile_update_count": 0,
-        "bile_z_source": "",
-        "bile_zpool_size": 0,
-        "recent_success_ratio": 0.0,
-        "recent_low_reward_ratio": 0.0,
-        "bootstrap_active": 0,
-        "escape_active": 0,
-        "bile_pair_source": "",
-        "bile_replay_size": 0,
+        "mira_phi_loss": 0.0,
+        "mira_dyn_loss": 0.0,
+        "mira_prediction_error": 0.0,
+        "mira_mean_d_phi": 0.0,
+        "mira_mean_metric_target": 0.0,
+        "mira_update_count": 0,
+        "mira_z_source": "",
+        "mira_pair_source": "",
+        "mira_replay_size": 0,
     }
 
 
@@ -2164,8 +1526,7 @@ def _add_totals(
     r_coh,
     r_div,
     step_reward,
-    bile_bonus=0.0,
-    bootstrap_bonus=0.0,
+    mira_bonus=0.0,
     exploration_reward=0.0,
 ):
     totals["extrinsic_reward"] += float(r_ext)
@@ -2177,8 +1538,7 @@ def _add_totals(
     totals["diversity"] += float(r_div)
     totals["total_reward"] += float(step_reward)
     totals["valid_steps"] += int(metrics.get("valid", 0))
-    totals["bile_bonus"] += float(bile_bonus)
-    totals["bootstrap_diversity"] += float(bootstrap_bonus)
+    totals["mira_bonus"] += float(mira_bonus)
     totals["exploration_reward"] += float(exploration_reward)
 
 

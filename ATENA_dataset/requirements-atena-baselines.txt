@@ -6,3 +6,4 @@ nltk==3.8.1
 zss==1.2.0
 networkx==2.8.8
 matplotlib==3.6.3
+psutil==5.9.5

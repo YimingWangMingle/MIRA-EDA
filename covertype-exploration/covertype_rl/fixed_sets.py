@@ -89,23 +89,30 @@ def ensure_fixed_universe(
     max_set_size=200000,
     preprocess_name=None,
     force=False,
+    csv_path=None,
+    allow_build=False,
 ):
+    from .cache_contract import validate_cache, certify_cache
     root_dir = Path(root_dir)
     preprocessed_dir = root_dir / "preprocessed"
-    preprocessed_dir.mkdir(parents=True, exist_ok=True)
 
     name = preprocess_name or f"fixed_sets_seed{seed}_n{n_sets}_min{min_set_size}"
     universe_dir = preprocessed_dir / name
     metadata_path = universe_dir / "metadata.json"
 
-    expected_action_labels = [action.label for action in actions]
+    csv_path = Path(csv_path) if csv_path is not None else root_dir / 'covertype.csv'
+    expected = dict(seed=int(seed), requested_sets=int(n_sets), min_set_size=int(min_set_size),
+                    max_set_size=int(max_set_size), n_bins=int(data.n_bins))
+    if force and not allow_build:
+        raise ValueError('Rebuild only through preprocess_fixed_sets.py, never during training')
     if metadata_path.exists() and not force:
-        with open(metadata_path, encoding="utf-8") as f:
-            metadata = json.load(f)
-        cached_action_labels = metadata.get("action_labels")
-        if cached_action_labels == expected_action_labels:
-            return load_fixed_universe(universe_dir), universe_dir
-        force = True
+        universe = validate_cache(universe_dir, csv_path, target_path,
+                                  [action.label for action in actions], expected)
+        if sorted(map(int, universe.targets_for_set(0))) != sorted(set(map(int, target_items))):
+            raise ValueError('Requested target items differ from the certified cache')
+        return universe, universe_dir
+    if not allow_build:
+        raise FileNotFoundError('Missing cache; run preprocess_fixed_sets.py explicitly: ' + str(universe_dir))
 
     universe_dir.mkdir(parents=True, exist_ok=True)
     target_regions = _load_target_region_constraints(target_path)
@@ -121,7 +128,11 @@ def ensure_fixed_universe(
         min_set_size=int(min_set_size),
         max_set_size=int(max_set_size),
     )
-    return load_fixed_universe(universe_dir), universe_dir
+    validation_path = universe_dir / 'validation.json'
+    if validation_path.exists():
+        validation_path.unlink()
+    universe = certify_cache(universe_dir, csv_path, target_path, actions, expected)
+    return universe, universe_dir
 
 
 def build_fixed_universe(

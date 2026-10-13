@@ -14,9 +14,12 @@ from rl.A3C_2_actors.critic import Critic
 from rl.A3C_2_actors.operation_actor import OperationActor
 from rl.A3C_2_actors.pipeline_environment import PipelineEnvironment
 from rl.A3C_2_actors.set_actor import SetActor
+from revision_support.inference import predict as fast_predict
+from revision_support.csv_output import locked_csv_append
+from revision_support.galaxy_execution import complete_training
 
 
-tf.keras.backend.set_floatx("float32")
+tf.keras.backend.set_floatx("float64")
 
 
 def build_parser():
@@ -25,13 +28,16 @@ def build_parser():
     parser.add_argument("--update_interval", type=int, default=20)
     parser.add_argument("--actor_lr", type=float, default=0.00003)
     parser.add_argument("--critic_lr", type=float, default=0.00003)
-    parser.add_argument("--workers", type=int, default=12)
+    parser.add_argument("--workers", type=int, default=14)
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--lstm_steps", type=int, default=5)
     parser.add_argument("--episodes", type=int, default=1000)
+    parser.add_argument("--steps", type=int, default=250)
+    parser.add_argument("--output_profile", choices=('csv', 'full'), default='csv')
     parser.add_argument("--target_set", type=str, default=None)
     parser.add_argument("--target_seed", type=int, default=None)
     parser.add_argument("--target_samples_per_file", type=int, default=100)
-    parser.add_argument("--w_ext", type=float, default=8.0)
+    parser.add_argument("--w_ext", type=float, default=2.0)
     parser.add_argument("--notes", type=str, default="")
     parser.add_argument("--mode", type=str, default="scattered")
     parser.add_argument("--name", type=str, default="")
@@ -49,6 +55,7 @@ def build_parser():
 
 
 def prepare_args(args):
+    args.method = "pure_a3c"
     if args.resume_step is not None:
         args.resume = True
     if not args.name:
@@ -61,6 +68,8 @@ def prepare_args(args):
     if args.resume and info_path.exists():
         with open(info_path, encoding="utf-8") as f:
             saved = json.load(f)
+        if saved.get('method', 'pure_a3c') != 'pure_a3c':
+            raise ValueError('Checkpoint method does not match pure A3C')
         for key, value in saved.items():
             if key not in {"resume", "resume_step"}:
                 setattr(args, key, value)
@@ -146,7 +155,7 @@ class ParameterServer:
             "cumulative_target_efficiency": self.cumulative_extrinsic_reward / max(cumulative_unique_sets_viewed, 1),
         }
         save_interval = int(getattr(self.args, "save_interval", 250))
-        if save_interval > 0 and completed_episode % save_interval == 0:
+        if self.args.output_profile == 'full' and save_interval > 0 and completed_episode % save_interval == 0:
             self.global_operation_actor.save_model(step=completed_episode)
             self.global_set_actor.save_model(step=completed_episode)
             self.global_critic.save_model(step=completed_episode)
@@ -159,7 +168,7 @@ class ParameterServer:
         result_dir.mkdir(parents=True, exist_ok=True)
 
         if trace_rows:
-            trace_file = result_dir / f"{self.args.name}_pure_a3c_exploration_trace.csv"
+            trace_file = result_dir / f"{self.args.name}_{self.args.method}_exploration_trace.csv"
             file_exists = os.path.isfile(trace_file)
             with open(trace_file, mode="a", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
@@ -176,8 +185,6 @@ class ParameterServer:
                             "parameter",
                             "input_set_id",
                             "operation_action",
-                            "bootstrap_active",
-                            "escape_active",
                             "z_source",
                             "step_total_reward",
                         ]
@@ -195,9 +202,7 @@ class ParameterServer:
                             row.get("parameter", ""),
                             row.get("input_set_id", -1),
                             row.get("operation_action", -1),
-                            0,
-                            0,
-                            "pure_a3c",
+                            self.args.method,
                             row.get("step_total_reward", 0.0),
                         ]
                     )
@@ -217,7 +222,7 @@ class ParameterServer:
             new_state_rows.append((set_id, state))
 
         if new_state_rows:
-            state_file = result_dir / f"{self.args.name}_pure_a3c_visited_set_states.csv"
+            state_file = result_dir / f"{self.args.name}_{self.args.method}_visited_set_states.csv"
             file_exists = os.path.isfile(state_file)
             with open(state_file, mode="a", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
@@ -260,6 +265,8 @@ class ParameterServer:
         }
 
     def save_final_models(self):
+        if self.args.output_profile == 'csv':
+            return
         self.global_operation_actor.save_model()
         self.global_set_actor.save_model()
         self.global_critic.save_model()
@@ -304,15 +311,15 @@ class WorkerAgent:
         self.critic.model.set_weights(weights["critic"])
 
     def n_step_td_target(self, rewards, next_v_value, done):
-        rewards = np.asarray(rewards, dtype=np.float32)
-        td_targets = np.zeros_like(rewards, dtype=np.float32)
+        rewards = np.asarray(rewards, dtype=np.float64)
+        td_targets = np.zeros_like(rewards, dtype=np.float64)
         cumulative = 0.0
         if not done:
             cumulative = float(np.squeeze(next_v_value))
         for index in reversed(range(0, len(rewards))):
             cumulative = float(self.args.gamma) * cumulative + float(np.squeeze(rewards[index]))
             td_targets[index, 0] = cumulative
-        return td_targets.astype(np.float32)
+        return td_targets.astype(np.float64)
 
     @staticmethod
     def list_to_batch(list_data):
@@ -351,9 +358,8 @@ class WorkerAgent:
 
             try:
                 while not done:
-                    set_probs = self.set_actor.model.predict(
-                        np.asarray(set_action_steps, dtype=np.float32).reshape((1, self.steps, self.set_state_dim)),
-                        verbose=0,
+                    set_probs = fast_predict(self.set_actor.model,
+                        np.asarray(set_action_steps, dtype=np.float64).reshape((1, self.steps, self.set_state_dim)),
                     )
                     set_probs = self.env.fix_possible_set_action_probs(set_probs[0])
                     set_action = self.sample_action(set_probs, self.set_action_dim, fallback_action=0)
@@ -361,9 +367,8 @@ class WorkerAgent:
                     operation_state = self.env.get_operation_state(set_action)
                     operation_action_steps.pop(0)
                     operation_action_steps.append(operation_state)
-                    operation_probs = self.operation_actor.model.predict(
-                        np.asarray(operation_action_steps, dtype=np.float32).reshape((1, self.steps, self.operation_state_dim)),
-                        verbose=0,
+                    operation_probs = fast_predict(self.operation_actor.model,
+                        np.asarray(operation_action_steps, dtype=np.float64).reshape((1, self.steps, self.operation_state_dim)),
                     )
                     operation_probs = self.env.fix_possible_operation_action_probs(set_action, operation_probs[0])
                     operation_action = self.sample_action(operation_probs, self.operation_action_dim)
@@ -380,11 +385,11 @@ class WorkerAgent:
                     next_set_action_steps = list(set_action_steps)
                     next_set_action_steps.pop(0)
                     next_set_action_steps.append(next_set_state)
-                    reward_batch.append(np.asarray([[total_step_reward]], dtype=np.float32))
-                    set_state_batch.append(np.asarray(set_action_steps, dtype=np.float32).reshape((1, self.steps, self.set_state_dim)))
+                    reward_batch.append(np.asarray([[total_step_reward]], dtype=np.float64))
+                    set_state_batch.append(np.asarray(set_action_steps, dtype=np.float64).reshape((1, self.steps, self.set_state_dim)))
                     set_action_batch.append(np.asarray([[set_action]], dtype=np.int32))
                     operation_state_batch.append(
-                        np.asarray(operation_action_steps, dtype=np.float32).reshape((1, self.steps, self.operation_state_dim))
+                        np.asarray(operation_action_steps, dtype=np.float64).reshape((1, self.steps, self.operation_state_dim))
                     )
                     operation_action_batch.append(np.asarray([[operation_action]], dtype=np.int32))
 
@@ -397,23 +402,22 @@ class WorkerAgent:
                         operation_states = self.list_to_batch(operation_state_batch)
                         operation_actions = self.list_to_batch(operation_action_batch)
                         rewards = self.list_to_batch(reward_batch)
-                        next_v_value = self.critic.model.predict(
-                            np.asarray(next_set_action_steps, dtype=np.float32).reshape((1, self.steps, self.set_state_dim)),
-                            verbose=0,
+                        next_v_value = fast_predict(self.critic.model,
+                            np.asarray(next_set_action_steps, dtype=np.float64).reshape((1, self.steps, self.set_state_dim)),
                         )
                         td_targets = self.n_step_td_target(rewards, next_v_value, done)
                         advantages = (
-                            td_targets - np.asarray(self.critic.model.predict(set_states, verbose=0), dtype=np.float32)
-                        ).astype(np.float32)
+                            td_targets - np.asarray(fast_predict(self.critic.model, set_states), dtype=np.float64)
+                        ).astype(np.float64)
                         try:
                             set_grads, _ = self.set_actor.get_gradients(set_states, set_actions, advantages)
                             op_grads, _ = self.operation_actor.get_gradients(operation_states, operation_actions, advantages)
                             critic_grads, _ = self.critic.get_gradients(set_states, td_targets)
                             new_weights = ray.get(
                                 self.ps.apply_gradients_and_get_weights.remote(
-                                    [None if grad is None else grad.numpy().astype(np.float32) for grad in set_grads],
-                                    [None if grad is None else grad.numpy().astype(np.float32) for grad in op_grads],
-                                    [None if grad is None else grad.numpy().astype(np.float32) for grad in critic_grads],
+                                    [None if grad is None else grad.numpy().astype(np.float64) for grad in set_grads],
+                                    [None if grad is None else grad.numpy().astype(np.float64) for grad in op_grads],
+                                    [None if grad is None else grad.numpy().astype(np.float64) for grad in critic_grads],
                                 )
                             )
                             self.set_actor.model.set_weights(new_weights["set"])
@@ -422,9 +426,7 @@ class WorkerAgent:
                         except Exception as error:
                             print(error)
                             traceback.print_tb(error.__traceback__)
-                            print("Episode gradient push failed, retrying", flush=True)
-                            failed = True
-                            done = True
+                            raise RuntimeError("Episode gradient push failed") from error
 
                         set_state_batch = []
                         operation_state_batch = []
@@ -443,21 +445,21 @@ class WorkerAgent:
                     ray.get(self.ps.record_exploration_logs.remote(curr_episode, trace_rows, state_rows))
                     self._write_reward_row(curr_episode, ep_ext_score, ep_int_score, ep_total_reward, metrics)
                     print(
-                        f"EP{curr_episode} pure_a3c Agent{self.agent_id} | "
+                        f"EP{curr_episode} {self.args.method} Agent{self.agent_id} | "
                         f"Ext_R: {ep_ext_score:.1f} | Total: {ep_total_reward:.1f}",
                         flush=True,
                     )
             except Exception as error:
                 print(error)
                 traceback.print_tb(error.__traceback__)
-                print("Episode failed, retrying", flush=True)
+                raise RuntimeError("Episode failed") from error
 
     def _write_reward_row(self, episode, ep_ext_score, ep_int_score, ep_total_reward, metrics):
         result_dir = Path(getattr(self.args, "result_dir", "."))
         result_dir.mkdir(parents=True, exist_ok=True)
-        csv_file = result_dir / f"{self.args.name}_pure_a3c_rewards.csv"
+        csv_file = result_dir / f"{self.args.name}_{self.args.method}_rewards.csv"
         file_exists = os.path.isfile(csv_file)
-        with open(csv_file, mode="a", newline="", encoding="utf-8") as f:
+        with locked_csv_append(csv_file) as (f, file_exists):
             writer = csv.writer(f)
             if not file_exists:
                 writer.writerow(
@@ -479,7 +481,7 @@ class WorkerAgent:
                     episode,
                     ep_ext_score,
                     ep_int_score,
-                    0.0,
+                    ep_total_reward - float(self.args.w_ext) * ep_ext_score,
                     ep_total_reward,
                     metrics["sets_viewed"],
                     metrics["cumulative_unique_sets_viewed"],
@@ -495,7 +497,7 @@ class Agent:
         self.args = prepare_args(args or build_parser().parse_args())
         self.pipeline = pipeline
         self.env_name = env_name
-        self.episode_steps = 250 if self.args.mode == "scattered" else 25
+        self.episode_steps = self.args.steps
         self.num_workers = int(self.args.workers)
         dummy_env = PipelineEnvironment(
             self.pipeline,
@@ -521,7 +523,8 @@ class Agent:
                     json.dump(self.target_items, f, indent=1)
 
     def train(self, max_episodes=None):
-        max_episodes = int(max_episodes or self.args.episodes)
+        max_episodes = int(self.args.episodes if max_episodes is None else max_episodes)
+        self.args.episodes = max_episodes
         ps = ParameterServer.remote(
             self.set_state_dim,
             self.operation_state_dim,
@@ -533,5 +536,4 @@ class Agent:
             WorkerAgent.remote(self.pipeline, ps, worker_id, self.args, self.episode_steps)
             for worker_id in range(self.num_workers)
         ]
-        ray.get([worker.train_loop.remote() for worker in workers])
-        ray.get(ps.save_final_models.remote())
+        complete_training(ray, ps, workers, [worker.train_loop.remote() for worker in workers])

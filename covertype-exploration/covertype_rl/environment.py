@@ -1,8 +1,13 @@
 import hashlib
+import sys
+from pathlib import Path
 from collections import OrderedDict
 from dataclasses import dataclass
 
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from revision_support.resources import timed_query
 
 
 class FixedSetEnvironment:
@@ -36,6 +41,7 @@ class FixedSetEnvironment:
         self.previous_set_size = self.universe.size_for_set(self.current_set_id)
         return state
 
+    @timed_query("covertype_fixed", "step")
     def step(self, action_id):
         action_id = int(action_id)
         previous_set_id = int(self.current_set_id)
@@ -55,6 +61,7 @@ class FixedSetEnvironment:
             return np.arange(self.universe.action_dim, dtype=np.int64)
         return valid
 
+    @timed_query("covertype_fixed", "random_valid_set_step")
     def random_valid_set_step(self, rng):
         previous_set_id = int(self.current_set_id)
         next_set_id = int(rng.integers(0, self.universe.n_sets))

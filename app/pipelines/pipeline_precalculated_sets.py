@@ -79,10 +79,7 @@ class PipelineWithPrecalculatedSets(Pipeline):
     def reload_set_data(self, dataset, apply_joins=False, apply_predicate=False, initialize_data=True):
         dataset = Pipeline.reload_set_data(
             self, dataset, apply_joins, apply_predicate)
-        try:
-            dataset.set_id = self.find_group_id(dataset)
-        except IndexError:
-            dataset.set_id = None
+        dataset.set_id = self.find_group_id(dataset)
         return dataset
 
     @loggable_operator()
@@ -328,36 +325,24 @@ class PipelineWithPrecalculatedSets(Pipeline):
     def find_group_id(self, dataset):
         if len(dataset.data)< self.min_set_size:
             return None
-        try:
-            group_definition = []
-            for predicate_item in dataset.predicate.components:
-                group_definition.append(
-                    int(self.correspondences.loc[
-                        (self.correspondences.value.astype("str") ==
-                         str(predicate_item.value))
-                        & (self.correspondences.column == predicate_item.attribute
-                           )].iloc[0].id))
-            group_definition = set(group_definition)
-            groups = self.groups.index[self.groups.definition ==
-                                       group_definition]
-            group_id = None
-            if len(groups) == 1:
-                group_id = self.groups.index[self.groups.definition ==
-                                             group_definition][0]
-                # group = self.groups.iloc[group_id]
-            elif len(groups) > 1:
-                current_set_item_count = len(dataset.data)
-                group_id = self.groups.index[
-                    (group_definition - self.groups.definition == set())
-                    &
-                    (self.groups.member_count == current_set_item_count)][0]
-            else:
-                same_length_groups = self.groups[self.groups.member_count == len(dataset.data)]
-                groups =  same_length_groups[same_length_groups.definition.apply(lambda x: group_definition.issubset(x))]
-                if len(groups) == 1:
-                    group_id = groups.index[0]
-                # group = self.groups.iloc[group_id]
-
-            return group_id
-        except Exception as error:
-            return None
+        group_definition = []
+        for predicate_item in dataset.predicate.components:
+            matches = self.correspondences.loc[
+                (self.correspondences.value.astype("str") == str(predicate_item.value))
+                & (self.correspondences.column == predicate_item.attribute)]
+            if matches.empty:
+                return None
+            group_definition.append(int(matches.iloc[0].id))
+        group_definition = set(group_definition)
+        groups = self.groups.index[self.groups.definition == group_definition]
+        if len(groups) == 1:
+            return groups[0]
+        if len(groups) > 1:
+            matches = self.groups.index[
+                (group_definition - self.groups.definition == set())
+                & (self.groups.member_count == len(dataset.data))]
+            return matches[0] if len(matches) else None
+        same_length_groups = self.groups[self.groups.member_count == len(dataset.data)]
+        groups = same_length_groups[same_length_groups.definition.apply(
+            lambda value: group_definition.issubset(value))]
+        return groups.index[0] if len(groups) == 1 else None

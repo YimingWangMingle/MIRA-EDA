@@ -1,6 +1,8 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from contextvars import copy_context
+from revision_support.resources import timed_query
 
 from .memoryMonitor import MemoryMonitor
 
@@ -14,7 +16,7 @@ class loggable_operator(object):
                     mem_thread = executor.submit(monitor.measure_usage)
                     startTime = datetime.now()
                     try:
-                        f_thread = executor.submit(f, *args, **kwargs)
+                        f_thread = executor.submit(copy_context().run, f, *args, **kwargs)
                         return f_thread.result()
                     finally:
                         monitor.keep_measuring = False
@@ -28,7 +30,7 @@ class loggable_operator(object):
                         kwargs["logger"].append_log(log_data)
             else:
                 return f(*args, **kwargs)
-        return wrapped_f
+        return timed_query("galaxy", f.__name__)(wrapped_f)
 
 
 class Logger:

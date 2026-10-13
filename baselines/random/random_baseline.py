@@ -1,7 +1,6 @@
 import argparse
 import csv
 import json
-import multiprocessing as mp
 import os
 import random
 
@@ -11,6 +10,7 @@ from app.pipelines.pipeline_precalculated_sets import PipelineWithPrecalculatedS
 from rl.A3C_2_actors.action_manager import ActionManager
 from rl.A3C_2_actors.state_encoder import StateEncoder
 from rl.A3C_2_actors.target_set_generator import TargetSetGenerator
+from revision_support.galaxy_execution import run_worker_batch
 
 
 EXPLORATION_COLUMNS = [
@@ -49,8 +49,6 @@ TRACE_HEADER = [
     "parameter",
     "input_set_id",
     "operation_action",
-    "bootstrap_active",
-    "escape_active",
     "z_source",
 ]
 
@@ -189,6 +187,8 @@ def build_state_encoder(pipeline, args):
 
 
 def run_worker(worker_args):
+    from revision_support.galaxy_results import score_returned_sets, log_returned_sets
+    from revision_support.resources import flush_events
     args, worker_id, start_episode, end_episode = worker_args
     random.seed(args.seed + worker_id)
     np.random.seed(args.seed + worker_id)
@@ -250,7 +250,8 @@ def run_worker(worker_args):
                 valid = is_operator_valid(current_dataset, action_type)
 
                 selected_dataset = None
-                encoded_state = None
+                output_datasets = []
+                output_states = []
                 if valid:
                     try:
                         output_datasets = [
@@ -258,60 +259,30 @@ def run_worker(worker_args):
                             for dataset in execute_operator(pipeline, current_dataset, action_type)
                             if dataset is not None and dataset.data is not None and not dataset.data.empty
                         ]
-                    except Exception:
-                        output_datasets = []
+                    except Exception as exc:
+                        raise RuntimeError(f'Galaxy Random operator failure: episode={episode}, step={step}') from exc
                     if output_datasets:
                         selected_dataset = output_datasets[int(rng.integers(0, len(output_datasets)))]
                     else:
                         valid = False
 
                 if valid and selected_dataset is not None:
-                    found_items_before_step = dict(state_encoder.found_items_with_ratio)
                     try:
-                        encoded_state, extrinsic, interestingness = state_encoder.encode_dataset(
-                            selected_dataset,
-                            parent_dataset=current_dataset,
-                        )
-                        extrinsic = float(extrinsic)
-                        interestingness = float(interestingness)
+                        output_states, extrinsic, interestingness = score_returned_sets(
+                            state_encoder, output_datasets, current_dataset)
                         current_dataset = selected_dataset
-                    except Exception:
-                        state_encoder.found_items_with_ratio = found_items_before_step
-                        selected_dataset = None
-                        encoded_state = None
-                        valid = False
-                        extrinsic = 0.0
-                        interestingness = 0.0
+                    except Exception as exc:
+                        raise RuntimeError(f'Galaxy Random scoring failure: episode={episode}, step={step}') from exc
                 else:
                     extrinsic = 0.0
                     interestingness = 0.0
 
-                output_set_id = safe_set_id(selected_dataset, default=input_set_id) if valid else input_set_id
                 ep_ext += extrinsic
                 ep_int += interestingness
-                loggable_id = loggable_set_id(selected_dataset) if valid else None
-                if loggable_id is not None:
-                    episode_set_ids.add(loggable_id)
-
-                trace_writer.writerow([
-                    episode,
-                    worker_id,
-                    step,
-                    output_set_id,
-                    extrinsic,
-                    interestingness,
-                    operator,
-                    parameter,
-                    input_set_id,
-                    operation_action,
-                    0,
-                    0,
-                    "random_operator" if valid else "random_operator_invalid",
-                ])
-
-                if loggable_id is not None and encoded_state is not None and loggable_id not in logged_state_ids:
-                    logged_state_ids.add(loggable_id)
-                    state_writer.writerow([loggable_id] + list(encoded_state))
+                log_returned_sets(output_datasets, output_states, episode_set_ids, logged_state_ids,
+                    state_writer, trace_writer, [episode, worker_id, step],
+                    [operator, parameter, input_set_id, operation_action,
+                     "random_operator" if valid else "random_operator_invalid"], extrinsic, interestingness)
 
             trace_file.flush()
             state_file.flush()
@@ -341,6 +312,7 @@ def run_worker(worker_args):
                 f"Ext_R: {ep_ext:.3f} | Int: {ep_int:.3f} | sets_viewed: {len(episode_set_ids)}"
             )
     finally:
+        flush_events()
         if partial_file is not None:
             partial_file.close()
         trace_file.close()
@@ -364,16 +336,16 @@ def episode_ranges(total_episodes, workers):
 
 
 def run(args):
+    config_path = f"{args.output_prefix}_{args.baseline}_config.json"
+    ensure_parent_dir(config_path)
+    with open(config_path, 'w', encoding='utf-8') as output:
+        json.dump(vars(args), output, indent=2)
     tasks = [
         (args, worker_id, start, end)
         for worker_id, start, end in episode_ranges(args.episodes, args.workers)
     ]
 
-    if args.workers == 1:
-        results = [run_worker(tasks[0])]
-    else:
-        with mp.Pool(processes=len(tasks)) as pool:
-            results = pool.map(run_worker, tasks)
+    results = run_worker_batch(run_worker, tasks, len(tasks))
 
     rows = []
     target_items = []
@@ -475,7 +447,7 @@ def parse_args():
     parser.add_argument("--target_set", type=str, default=None)
     parser.add_argument("--episodes", type=int, default=1000)
     parser.add_argument("--steps", type=int, default=250)
-    parser.add_argument("--workers", type=int, default=12)
+    parser.add_argument("--workers", type=int, default=14)
     parser.add_argument("--mode", type=str, default="scattered")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--target_seed", type=int, default=None)

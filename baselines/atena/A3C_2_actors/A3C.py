@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 import os
 import json
 import random
@@ -7,6 +8,9 @@ import csv
 from datetime import datetime
 
 import numpy as np
+from revision_support.inference import predict as fast_predict
+from revision_support.csv_output import locked_csv_append
+from revision_support.galaxy_execution import complete_training
 import tensorflow as tf
 import ray
 os.environ.setdefault("WANDB_MODE", "offline")
@@ -25,7 +29,10 @@ parser.add_argument('--gamma', type=float, default=0.99)
 parser.add_argument('--update_interval', type=int, default=20)
 parser.add_argument('--actor_lr', type=float, default=0.00003)
 parser.add_argument('--critic_lr', type=float, default=0.00003)
-parser.add_argument('--workers', type=int, default=12)
+parser.add_argument('--workers', type=int, default=14)
+parser.add_argument('--episodes', type=int, default=1000)
+parser.add_argument('--steps', type=int, default=250)
+parser.add_argument('--output_profile', choices=('csv', 'full'), default='csv')
 parser.add_argument('--lstm_steps', type=int, default=5)
 
 # ==========================================
@@ -36,16 +43,17 @@ parser.add_argument('--target_set', type=str, default=None)
 parser.add_argument('--target_seed', type=int, default=None)
 parser.add_argument('--target_samples_per_file', type=int, default=100)
 
-# Target-aware ATENA-style compound reward weights.
+# ATENA compound reward weights (external target reward plus EDA).
 # Extrinsic reward is included in policy training and still used as the evaluation metric.
-parser.add_argument('--w_ext', type=float, default=8.0, help="Target-aware extrinsic reward weight")
-parser.add_argument('--w_int', type=float, default=1.0, help="ATENA interestingness weight")
-parser.add_argument('--w_coh', type=float, default=1.0, help="ATENA coherency weight")
-parser.add_argument('--w_div', type=float, default=1.0, help="ATENA diversity weight")
+parser.add_argument('--w_ext', type=float, default=2.0, help="Target-aware extrinsic reward weight")
+parser.add_argument('--w_int', type=float, default=0.1, help="ATENA interestingness weight")
+parser.add_argument('--w_coh', type=float, default=0.1, help="ATENA coherency weight")
+parser.add_argument('--w_div', type=float, default=0.1, help="ATENA diversity weight")
 
 parser.add_argument('--notes', type=str, default="")
 parser.add_argument('--mode', type=str, default="scattered")
 parser.add_argument('--name', type=str, default="")
+parser.add_argument('--output_dir', default='outputs')
 parser.add_argument('--resume', action='store_true')
 parser.add_argument('--resume_step', type=int, default=None)
 parser.add_argument('--operators', nargs='+', type=str,
@@ -56,7 +64,10 @@ if args.resume_step != None:
     args.resume = True
 
 if args.name == "":
-    args.name = f"{args.mode}-fusion-lstm-{args.lstm_steps}-alr-{args.actor_lr}-clr-{args.critic_lr}-{now.strftime('%m%d%Y_%H%M%S')}"
+    args.name = f"{args.mode}-atena-lstm-{args.lstm_steps}-alr-{args.actor_lr}-clr-{args.critic_lr}-{now.strftime('%m%d%Y_%H%M%S')}"
+
+args.result_dir = str(Path(args.output_dir) / args.name)
+Path(args.result_dir).mkdir(parents=True, exist_ok=True)
 
 if not args.resume:
     args.id = wandb.util.generate_id()
@@ -85,6 +96,7 @@ class ParameterServer:
 
         self.args = args
         self.episodes_done = args.resume_step if args.resume_step is not None else 0
+        self.episodes_reserved = self.episodes_done
 
         model_path = None
         if args.resume:
@@ -126,7 +138,7 @@ class ParameterServer:
         context = context or {}
 
         if trace_rows:
-            trace_file = f"{self.args.name}_exploration_trace.csv"
+            trace_file = str(Path(self.args.result_dir) / f"{self.args.name}_exploration_trace.csv")
             file_exists = os.path.isfile(trace_file)
             with open(trace_file, mode='a', newline='') as f:
                 writer = csv.writer(f)
@@ -142,8 +154,6 @@ class ParameterServer:
                         'parameter',
                         'input_set_id',
                         'operation_action',
-                        'bootstrap_active',
-                        'escape_active',
                         'z_source',
                     ])
                 for row in trace_rows:
@@ -158,8 +168,6 @@ class ParameterServer:
                         row.get("parameter", ""),
                         row.get("input_set_id", -1),
                         row.get("operation_action", -1),
-                        int(context.get("bootstrap_active", 0)),
-                        int(context.get("escape_active", 0)),
                         context.get("z_source", ""),
                     ])
 
@@ -178,7 +186,7 @@ class ParameterServer:
             new_state_rows.append((set_id, state))
 
         if new_state_rows:
-            state_file = f"{self.args.name}_visited_set_states.csv"
+            state_file = str(Path(self.args.result_dir) / f"{self.args.name}_visited_set_states.csv")
             file_exists = os.path.isfile(state_file)
             with open(state_file, mode='a', newline='') as f:
                 writer = csv.writer(f)
@@ -207,16 +215,24 @@ class ParameterServer:
         }
         return weights
 
+    def reserve_episode(self, max_episodes):
+        if self.episodes_reserved >= int(max_episodes):
+            return None
+        self.episodes_reserved += 1
+        return self.episodes_reserved
+
     def increment_and_check_save(self):
         self.episodes_done += 1
         ep = self.episodes_done
-        if ep != 0 and ep % 250 == 0:
+        if ep != 0 and ep % 250 == 0 and self.args.output_profile == 'full':
             self.global_operation_actor.save_model(step=ep)
             self.global_set_actor.save_model(step=ep)
             self.global_critic.save_model(step=ep)
         return ep
 
     def save_final_models(self):
+        if self.args.output_profile == 'csv':
+            return
         self.global_operation_actor.save_model()
         self.global_set_actor.save_model()
         self.global_critic.save_model()
@@ -294,7 +310,9 @@ class WorkerAgent:
     def train_loop(self, max_episodes):
         curr_episode = 0
 
-        while max_episodes >= curr_episode:
+        while True:
+            if ray.get(self.ps.reserve_episode.remote(max_episodes)) is None:
+                break
             set_state_batch, operation_state_batch, set_action_batch, operation_action_batch, reward_batch = [], [], [], [], []
 
             # 双擎评估指标容器
@@ -314,7 +332,7 @@ class WorkerAgent:
 
             try:
                 while not done:
-                    probs = self.set_actor.model.predict(np.array(set_action_steps).reshape((1, self.steps, self.set_state_dim)),verbose=0)
+                    probs = fast_predict(self.set_actor.model, np.array(set_action_steps).reshape((1, self.steps, self.set_state_dim)))
                     probs = self.env.fix_possible_set_action_probs(probs[0])
                     set_action = 0 if all(np.isnan(x) for x in probs) else np.random.choice(self.set_action_dim, p=probs)
 
@@ -322,7 +340,7 @@ class WorkerAgent:
                     operation_action_steps.pop(0)
                     operation_action_steps.append(operation_state)
 
-                    probs = self.operation_actor.model.predict(np.array(operation_action_steps).reshape((1, self.steps, self.operation_state_dim)),verbose=0)
+                    probs = fast_predict(self.operation_actor.model, np.array(operation_action_steps).reshape((1, self.steps, self.operation_state_dim)))
                     probs = self.env.fix_possible_operation_action_probs(set_action, probs[0])
                     operation_action = np.random.choice(self.operation_action_dim) if all(np.isnan(x) for x in probs) else np.random.choice(self.operation_action_dim, p=probs)
 
@@ -357,7 +375,7 @@ class WorkerAgent:
                     episode_history_phi.append(phi_s_next)
                     set_state = next_set_state 
 
-                    # Target-aware ATENA-style baseline:
+                    # ATENA baseline:
                     # optimize extrinsic target discovery plus ATENA EDA quality terms.
                     total_step_reward = (
                         (self.args.w_ext * r_ext)
@@ -389,9 +407,9 @@ class WorkerAgent:
                         operation_actions = self.list_to_batch(operation_action_batch)
                         rewards = self.list_to_batch(reward_batch)
 
-                        next_v_value = self.critic.model.predict(np.array(next_set_action_steps).reshape((1, self.steps, self.set_state_dim)),verbose=0)
+                        next_v_value = fast_predict(self.critic.model, np.array(next_set_action_steps).reshape((1, self.steps, self.set_state_dim)))
                         td_targets = self.n_step_td_target(rewards, next_v_value, done)
-                        advantages = td_targets - self.critic.model.predict(set_states,verbose=0)
+                        advantages = td_targets - fast_predict(self.critic.model, set_states)
 
                         try:
                             set_grads, _ = self.set_actor.get_gradients(set_states, set_actions, advantages)
@@ -415,9 +433,7 @@ class WorkerAgent:
                         except Exception as error:
                             print(error)
                             traceback.print_tb(error.__traceback__)
-                            print('Episode gradient push failed, retrying')
-                            failed = True
-                            done = True
+                            raise RuntimeError('Episode gradient push failed') from error
 
                         set_state_batch, operation_state_batch, set_action_batch, operation_action_batch, reward_batch = [], [], [], [], []
 
@@ -434,18 +450,16 @@ class WorkerAgent:
                         trace_rows,
                         state_rows,
                         {
-                            "bootstrap_active": 0,
-                            "escape_active": 0,
-                            "z_source": "atena_extrinsic",
+                            "z_source": "atena",
                         },
                     ))
 
                     print(f'EP{curr_episode} Agent{self.agentId} | Ext_R: {ep_ext_score:.1f} | Int: {ep_int_score:.1f} | Coh: {ep_coh_score:.1f} | Div: {ep_div_score:.1f}')
 
-                    csv_file = f"{self.args.name}_fusion_rewards.csv"
+                    csv_file = str(Path(self.args.result_dir) / f"{self.args.name}_fusion_rewards.csv")
                     file_exists = os.path.isfile(csv_file)
 
-                    with open(csv_file, mode='a', newline='') as f:
+                    with locked_csv_append(csv_file) as (f, file_exists):
                         writer = csv.writer(f)
                         if not file_exists:
                             writer.writerow([
@@ -478,13 +492,13 @@ class WorkerAgent:
             except Exception as error:
                 print(error)
                 traceback.print_tb(error.__traceback__)
-                print('Episode failed, retrying')
+                raise RuntimeError('Episode failed') from error
 
 class Agent:
     def __init__(self, env_name, pipeline=None):
         self.pipeline = pipeline
         self.env_name = env_name
-        self.episode_steps = 250 if args.mode == "scattered" else 25
+        self.episode_steps = args.steps
         self.num_workers = args.workers
 
         dummy_env = PipelineEnvironment(
@@ -508,8 +522,8 @@ class Agent:
                 json.dump(self.target_items, f, indent=1)
             print(f"Saved target snapshot with {len(self.target_items)} objects to {target_snapshot_path}")
 
-    def train(self, max_episodes=1000):
+    def train(self, max_episodes=None):
+        max_episodes = int(args.episodes if max_episodes is None else max_episodes)
         ps = ParameterServer.remote(self.set_state_dim, self.operation_state_dim, self.set_action_dim, self.operation_action_dim, args)
         workers = [WorkerAgent.remote(self.pipeline, ps, i, args, self.episode_steps) for i in range(self.num_workers)]
-        ray.get([worker.train_loop.remote(max_episodes) for worker in workers])
-        ray.get(ps.save_final_models.remote())
+        complete_training(ray, ps, workers, [worker.train_loop.remote(max_episodes) for worker in workers])

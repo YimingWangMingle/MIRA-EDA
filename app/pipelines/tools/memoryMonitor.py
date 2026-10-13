@@ -1,5 +1,4 @@
 import os
-import resource
 from time import sleep
 
 import psutil
@@ -16,7 +15,6 @@ class MemoryMonitor:
             max_usage = max(
                 max_usage,
                 self.process.memory_info().rss
-                # resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
             )
             sleep(0.1)
 

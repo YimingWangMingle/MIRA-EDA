@@ -14,10 +14,14 @@ from app.pipelines.pipeline_precalculated_sets import PipelineWithPrecalculatedS
 from .state_encoder import StateEncoder
 from .target_set_generator import TargetSetGenerator
 from .action_manager import ActionManager
+from revision_support.resources import flush_events, query_step
+from revision_support.galaxy_execution import execute_galaxy_operator
 
 
 class PipelineEnvironment(gym.Env):
-    def __init__(self, pipeline: PipelineWithPrecalculatedSets, mode="simple", target_set_name=None, number_of_examples=3, agentId=-1, episode_steps=50, target_items=None, operators=[], target_seed=None, target_samples_per_file=100):
+    def __init__(self, pipeline: PipelineWithPrecalculatedSets, mode="simple", target_set_name=None, number_of_examples=3, agentId=-1, episode_steps=50, target_items=None, operators=[], target_seed=None, target_samples_per_file=100, observation_only=False, mira_descriptors=False):
+        self.mira_descriptors = bool(mira_descriptors)
+        self.observation_only = bool(observation_only)
         self.pipeline = pipeline
         self.mode = mode
         self.target_set_name = target_set_name
@@ -74,6 +78,8 @@ class PipelineEnvironment(gym.Env):
             self.state_encoder = StateEncoder(
                 pipeline, target_items=target_items)
 
+        if self.mira_descriptors:
+            self.state_encoder.enable_mira_descriptor()
         self.action_manager = ActionManager(pipeline, operators=operators)
         self.set_action_space = spaces.Discrete(self.pipeline.discrete_categories_count)
         self.operation_action_space = spaces.Discrete(len(self.action_manager.set_action_types))
@@ -82,6 +88,10 @@ class PipelineEnvironment(gym.Env):
         self.set_state_dim = self.pipeline.discrete_categories_count * len(self.state_encoder.set_description)
         if self.mode == "by_example":
             self.set_state_dim += len(self.state_encoder.set_description)
+        if self.mira_descriptors:
+            offset = self.set_state_dim
+            self.statistic_indices = [offset+i for i in self.state_encoder.mira_descriptor.statistic_indices]
+            self.set_state_dim += len(self.state_encoder.set_description) + 1
         self.operation_state_dim = self.set_state_dim + len(self.state_encoder.set_description)
 
         self.reset()
@@ -89,14 +99,20 @@ class PipelineEnvironment(gym.Env):
     def get_set_state(self):
         # 接收外部熟悉度奖励与内部三元动机奖励 
         encoded_sets, r_ext, r_int_js = self.state_encoder.encode_datasets(
-            datasets=self.datasets, parent_dataset=self.input_set)
-        self._cache_latest_dataset_states(encoded_sets)
+            datasets=self.datasets, parent_dataset=self.input_set,
+            get_reward=not self.observation_only)
+        if not self.observation_only:
+            self._cache_latest_dataset_states(encoded_sets)
         state = []
         if self.mode == 'by_example':
             state += self.example_state
 
         # 【加装防火墙】：抹除任何特征计算产生的 NaN 或 Inf
-        raw_state_array = np.array(state + encoded_sets, dtype=np.float32)
+        descriptor = state + encoded_sets
+        if self.mira_descriptors:
+            parent, _, _ = self.state_encoder.encode_dataset(self.input_set, get_reward=False, get_interestingness=False)
+            descriptor += parent + [self.step_count / max(self.episode_steps, 1)]
+        raw_state_array = np.array(descriptor, dtype=np.float32)
         safe_state_array = np.nan_to_num(raw_state_array, nan=0.0, posinf=0.0, neginf=0.0)
 
         return safe_state_array, r_ext, r_int_js
@@ -157,6 +173,7 @@ class PipelineEnvironment(gym.Env):
                 self.visited_set_state_rows[set_id] = row["state"]
 
     def consume_exploration_logs(self):
+        flush_events()
         trace_rows = list(self.exploration_trace_rows)
         state_rows = [
             {"set_id": set_id, "state": state}
@@ -170,7 +187,7 @@ class PipelineEnvironment(gym.Env):
         else:
             dataset = self.datasets[set_index]
 
-        encoded_set, _, _ = self.state_encoder.encode_dataset(dataset)
+        encoded_set, _, _ = self.state_encoder.encode_dataset(dataset, get_reward=not self.mira_descriptors)
 
         operation_state = np.concatenate([
             self.set_state, 
@@ -218,6 +235,7 @@ class PipelineEnvironment(gym.Env):
         probs = self.fix_possible_operation_action_probs(set_index, [1.0/self.operation_action_space.n]*self.operation_action_space.n)
         return np.random.choice(self.operation_action_space.n, p=probs)
 
+    @query_step
     def step(self, set_action, operation_action):
         self.step_count += 1
         set_action_array = self.action_manager.set_action_types[operation_action].split("-&-")
@@ -230,39 +248,30 @@ class PipelineEnvironment(gym.Env):
             set_index = set_action
 
         original_datasets = self.datasets
-
-        # ==========================================
-        # 【算子修复】：API 命名已根据 grep 结果完美对齐
-        # ==========================================
         try:
-            if set_action_array[0] == "by_superset":
-                result = self.pipeline.by_superset(self.input_set)
-                self.datasets = result if isinstance(result, list) else [result]
+            returned_datasets = execute_galaxy_operator(
+                self.pipeline, self.input_set,
+                self.action_manager.set_action_types[operation_action])
+        except Exception as error:
+            raise RuntimeError(
+                f"Galaxy operator failed: worker={self.agentId}, step={self.step_count}, "
+                f"action={self.action_manager.set_action_types[operation_action]}, "
+                f"input_set_id={self.input_set.set_id}"
+            ) from error
 
-            elif set_action_array[0] == "by_facet":
-                # 【核心修复】：包装成 List，防止 len() 错误计算字符串长度
-                result = self.pipeline.by_facet(self.input_set, [set_action_array[1]], self.pipeline.discrete_categories_count)
-                self.datasets = result if isinstance(result, list) else [result]
-
-            elif set_action_array[0] == "by_neighbors":
-                # 同理，by_neighbors 也需要接受 List 类型的 attributes
-                result = self.pipeline.by_neighbors(self.input_set, [set_action_array[1]])
-                self.datasets = result if isinstance(result, list) else [result]
-
-            elif set_action_array[0] == "by_distribution":
-                result = self.pipeline.by_distribution(self.input_set)
-                self.datasets = result if isinstance(result, list) else [result]
-
-        except Exception as e:
-            # 依然保留这把“保护伞”，以防万一原作者的代码还需要额外参数
-            if random.random() < 0.05: 
-                print(f"\n[算子底层报错] 动作: {set_action_array[0]} | 错误真凶: {repr(e)}")
-            self.datasets = original_datasets
-
+        self.datasets = returned_datasets
         done = self.step_count >= self.episode_steps
         if len(self.datasets) == 0:
             self.datasets = original_datasets
+            self.latest_dataset_state_rows = []
             r_ext, r_int_js = 0.0, 0.0
+            if self.mira_descriptors:
+                # The selected input and budget change even after a legal no-op.
+                self.set_state = self.set_state.copy()
+                parent, _, _ = self.state_encoder.encode_dataset(
+                    self.input_set, get_reward=False, get_interestingness=False)
+                self.set_state[-len(parent)-1:-1] = parent
+                self.set_state[-1] = self.step_count / max(self.episode_steps, 1)
         else:
             result_set_ids = set(map(lambda x: x.set_id, self.datasets))
             self.set_review_counter += len(result_set_ids & self.sets_viewed)
@@ -271,17 +280,31 @@ class PipelineEnvironment(gym.Env):
             # 计算双重奖励反馈 [cite: 75, 145]
             self.set_state, r_ext, r_int_js = self.get_set_state()
 
+        if self.observation_only:
+            return self.set_state, r_ext, r_int_js, done, f"{set_index}-{operation_action}"
+
         self.episode_info.append({
             "input_set_index": set_index,
             "input_set_size": len(self.input_set.data),
             "input_set_id": self.input_set.set_id if self.input_set.set_id != None else -1,
             "operator": set_action_array[0],
             "parameter": set_action_array[1] if len(set_action_array) > 1 else None,
-            "output_set_count": len(self.datasets),
-            "output_set_average_size": sum(map(lambda x: len(x.data), self.datasets))/len(self.datasets) if len(self.datasets)>0 else 0,
+            "output_set_count": len(returned_datasets),
+            "output_set_average_size": sum(len(x.data) for x in returned_datasets)/len(returned_datasets) if returned_datasets else 0,
             "reward_extrinsic": r_ext,
             "reward_intrinsic_js": r_int_js,
             "sets_viewed": len(self.sets_viewed)
         })
-        self._record_exploration_step(r_ext, r_int_js, set_action_array, set_index, operation_action)
+        if returned_datasets:
+            self._record_exploration_step(r_ext, r_int_js, set_action_array, set_index, operation_action)
+        else:
+            # Log the attempted step without re-counting old results as visited.
+            self.exploration_trace_rows.append({
+                "agent_id": int(self.agentId), "step": int(self.step_count),
+                "set_id": -1, "step_extrinsic_reward": 0.0,
+                "step_interestingness": 0.0, "operator": set_action_array[0],
+                "parameter": set_action_array[1] if len(set_action_array) > 1 else None,
+                "input_set_id": self.input_set.set_id if self.input_set.set_id is not None else -1,
+                "operation_action": int(operation_action),
+            })
         return self.set_state, r_ext, r_int_js, done, f"{set_index}-{operation_action}"

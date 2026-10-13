@@ -42,7 +42,7 @@ python -B run.py --dataset covertype --method mira --seeds 1 --smoke --execute
 python -B run.py --dataset covertype --method all --execute
 ```
 
-For each dataset, we run MIRA, seven comparison methods, and seven replacement ablations on fixed target seeds 1, 2, and 3: 45 runs per dataset. Each full run uses 1,000 episodes of 250 steps with 14 workers and one numerical thread per process. The target seeds define different target tasks. Asynchronous training is not bitwise deterministic.
+For each dataset, we run MIRA, seven comparison baseline methods, and seven ablations on fixed target seeds 1, 2, and 3: 45 runs per dataset. Each full run uses 1,000 episodes of 250 steps with 14 workers and one numerical thread per process. The target seeds define different target tasks. Asynchronous training is not bitwise deterministic.
 
 We use `--method baselines` or `--method ablations` to run either group, or a method ID from [protocol.json](protocol.json) to run one method. Omitting `--execute` prints the commands. PCA uses the first 16 episodes for collection and fitting, then trains for the remaining 984 episodes within the same budget.
 
@@ -50,7 +50,7 @@ We write full runs to `runs/`, short checks to `smoke_runs/`, and resource measu
 
 ## ATENA
 
-We compare MIRA, Official ATENA, PureA3C, DORA, Greedy, and Random across all eight datasets. We do not run replacement ablations on this benchmark.
+We compare MIRA, Official ATENA, PureA3C, DORA, Greedy, and Random across all eight datasets. We do not run ablations on this benchmark.
 
 From the repository root, we set up the TensorFlow environment, check one dataset, and run our methods:
 

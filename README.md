@@ -4,7 +4,7 @@ We provide our code and data for Galaxy, Covertype, and the ATENA benchmark (fou
 
 ## Setup
 
-We use Linux and Python 3.9 for Galaxy and Covertype. We split the compressed Galaxy CSV into two files to meet GitHub's file-size limit. From the repository root, we restore it once:
+We use Linux and Python 3.9 for Galaxy and Covertype. We split the original Galaxy dataset into two files. From the repository root, we restore it once:
 
 ```bash
 if [ ! -f app/data/sdss/galaxies.csv ]; then

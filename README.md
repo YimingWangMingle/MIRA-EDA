@@ -1,7 +1,8 @@
 # MIRA
 
 We provide our code and data for Galaxy, Covertype, and the ATENA benchmark (four Cyber and four Flights datasets). We include the fixed targets, indexes, and preprocessing caches needed to run the experiments. Results, trained models, and fitted PCA projections are generated during a run.
-full version of our code will be released after acceptance
+
+full version of our code will be released after acceptance.
 
 ## Setup
 

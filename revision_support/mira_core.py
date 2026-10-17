@@ -1,4 +1,3 @@
-"""Paper MIRA equations (5)--(7), (14)--(15), shared by all backends."""
 import json
 from pathlib import Path
 
@@ -34,7 +33,7 @@ def sample_direction(rng, latent_dim):
 
 
 class RunningMoments:
-    """Mergeable population moments; normalize before observing the new reward."""
+
     def __init__(self, state=None):
         state = state or {}
         self.count = int(state.get('count', 0))
@@ -127,7 +126,7 @@ class MIRACore(RepresentationVariants):
         return predict(self.encoder, finite_states(states, self.state_dim))
 
     def begin_episode(self, moments=None):
-        # This independent network is never overwritten by set_weights/EMA.
+
         if self.reward_encoder is None:
             self.reward_encoder = tf.keras.models.clone_model(self.target_encoder)
             self.reward_encoder.trainable = False
@@ -164,7 +163,7 @@ class MIRACore(RepresentationVariants):
         count = int(samples or self.mc_samples)
         shape = tf.concat([[count], tf.shape(mean)], axis=0)
         left = mean[None] + tf.exp(log_std)[None]*tf.random.normal(shape)
-        # Independent draws, including for pairs with identical distributions.
+
         right = tf.gather(mean, pairs)[None] + tf.exp(tf.gather(log_std, pairs))[None]*tf.random.normal(shape)
         return tf.reduce_mean(tf.norm(left-right, axis=2), axis=0)[:, None]
 
@@ -187,7 +186,7 @@ class MIRACore(RepresentationVariants):
             dyn_objective = float(dyn_weight)*dyn_loss
         grads = tape.gradient(dyn_objective, self.dynamics.trainable_variables)
         self._apply(self.dynamics_opt, grads, self.dynamics.trainable_variables)
-        # Equation (5) is evaluated after DynamicsUpdate, with no gradient into q.
+
         mean, log_std = self.distribution(current_latent, actions)
         successor = self.successor_discrepancy(mean, log_std, pairs)
         statistics = tf.gather(states, self.statistic_indices, axis=1)

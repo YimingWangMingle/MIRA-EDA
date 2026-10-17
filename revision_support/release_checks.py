@@ -1,4 +1,3 @@
-"""Check bundled data, pinned runtime and encoder updates before expensive runs."""
 import argparse
 import hashlib
 from importlib import metadata
@@ -103,7 +102,7 @@ def check_models():
                 model = cls(3, 2, 2, latent_dim=2, dense_units=8,
                             statistic_indices=[0, 1], encoder_variant=variant, encoder_pca_path=str(artifact))
                 before = model.get_weights()
-                # Fast inference must match the previous Keras predict path.
+
                 np.testing.assert_allclose(model.embed(states),
                     model.encoder.predict(states, verbose=0), rtol=1e-5, atol=1e-6)
                 model.train_batch(states, model.action_features([0]*16, [1]*16),
@@ -115,4 +114,3 @@ def check_models():
                         for old, new in zip(before[key], model.get_weights()[key]):
                             np.testing.assert_array_equal(old, new)
                 print('Validated {} {}'.format(cls.__module__, variant), flush=True)
-

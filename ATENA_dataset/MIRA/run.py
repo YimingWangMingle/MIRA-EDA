@@ -12,8 +12,6 @@ def validate_args(args):
         raise ValueError("steps must be positive")
     if int(args.episode_length) != 12:
         raise ValueError("MIRA requires episode_length=12")
-    if not 0.0 <= float(args.swa_start) <= 1.0:
-        raise ValueError("swa_start must be finite and between 0 and 1")
     return args
 
 
@@ -39,8 +37,6 @@ def parse_args(argv=None):
     parser.add_argument("--value_coef", type=float, default=0.5)
     parser.add_argument("--entropy_coef", type=float, default=0.01)
     parser.add_argument("--max_grad_norm", type=float, default=40.0)
-    parser.add_argument("--swa_start", type=float, default=0.4,
-                        help="Fixed training fraction at which policy weight averaging begins")
 
     parser.add_argument("--alpha", type=float, default=0.5)
     parser.add_argument("--mira_latent_dim", type=int, default=16)
@@ -64,7 +60,7 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
     args.mira_core_version = "mira_grounded_latent_v2"
     args.method = METHOD
-    args.policy_protocol = "mira_grounded_latent_v2_swa"
+    args.policy_protocol = "final_online_policy"
     try:
         return validate_args(args)
     except ValueError as exc:

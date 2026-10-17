@@ -15,10 +15,7 @@ class Critic:
             self.model = self.create_model()
         else:
             self.model = tf.keras.models.load_model(model_path)
-        #     if os.path.exists(model_path+"/critic_optimizer.pkl"):
-        #         with open(model_path+"/critic_optimizer.pkl", 'rb') as f:
-        #             self.opt.set_weights(pickle.load(f))
-        # self.global_opt_weight = None
+
 
     def create_model(self):
         return tf.keras.Sequential([
@@ -57,5 +54,3 @@ class Critic:
         if not os.path.exists(directory):
             os.makedirs(directory)
         self.model.save(directory)
-        # with open(directory + "critic_optimizer.pkl", 'wb') as f:
-        #     pickle.dump(self.global_opt_weight, f)

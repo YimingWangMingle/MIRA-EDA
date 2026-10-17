@@ -1,4 +1,3 @@
-"""Summarize one training seed using per-session generation costs."""
 import argparse
 import csv
 import json

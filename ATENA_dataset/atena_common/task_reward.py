@@ -1,4 +1,3 @@
-"""One task reward implementation shared by our ATENA methods."""
 import math
 from collections import Counter
 from atena.evaluation.distance import display_distance

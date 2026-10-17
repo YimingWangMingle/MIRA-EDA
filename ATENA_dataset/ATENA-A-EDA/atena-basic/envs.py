@@ -1,12 +1,10 @@
 import gym
 import numpy as np
 import chainerrl
-#import gym_atena.envs.atena_env_cont as atena_env_cont
-#from gym_atena.envs.atena_env_cont import ATENAEnvCont
 
 
 class CallRender(gym.Wrapper):
-    """Call Env.render before every step."""
+
 
     def _step(self, action):
         self.env.render()
@@ -14,10 +12,10 @@ class CallRender(gym.Wrapper):
 
 
 class ClipAction(gym.ActionWrapper):
-    """Clip actions using action_space."""
+
 
     def action(self, action):
-        # print('IMPORTANTTT {}'.format(action))
+
         return action
 
     def _action(self, action):
@@ -27,15 +25,7 @@ class ClipAction(gym.ActionWrapper):
 
 
 def make_env(args, env, seed, render, outdir, is_test=False):
-    """
-    Create a new gym environment
-    :param env: env id (env name)
-    :param seed:
-    :param render:
-    :param outdir: A per-training run directory where to record stats
-    :param is_test: if set to True then evaluation, ales training
-    :return: thr new environment
-    """
+
     env = gym.make(env)
     env_seed = 2 ** 32 - 1 - seed if is_test else seed
     assert 0 <= env_seed < 2 ** 32
@@ -57,11 +47,11 @@ def make_env(args, env, seed, render, outdir, is_test=False):
 
 def make_env_for_batch(args, process_idx, process_seeds, is_test):
     env = gym.make(args.env)
-    # Use different random seeds for train and test envs
+
     process_seed = int(process_seeds[process_idx])
     env_seed = 2 ** 32 - 1 - process_seed if is_test else process_seed
     env.seed(env_seed)
-    # Cast observations to float32 because our model uses float32
+
     env = chainerrl.wrappers.CastObservationToFloat32(env)
     if args.monitor:
         mode = 'evaluation' if is_test else 'training'
@@ -73,8 +63,8 @@ def make_env_for_batch(args, process_idx, process_seeds, is_test):
             uid=mode,
         )
     if not test:
-        # Scale rewards (and thus returns) to a reasonable range so that
-        # training is easier
+
+
         env = chainerrl.wrappers.ScaleReward(env, args.reward_scale_factor)
     if args.render:
         env = chainerrl.wrappers.Render(env)
@@ -82,9 +72,8 @@ def make_env_for_batch(args, process_idx, process_seeds, is_test):
 
 
 def make_batch_env(args, is_test):
-    # Set different random seeds for different subprocesses.
-    # If seed=0 and processes=4, subprocess seeds are [0, 1, 2, 3].
-    # If seed=1 and processes=4, subprocess seeds are [4, 5, 6, 7].
+
+
     process_seeds = np.arange(args.num_envs) + args.seed * args.num_envs
     assert process_seeds.max() < 2 ** 32
 

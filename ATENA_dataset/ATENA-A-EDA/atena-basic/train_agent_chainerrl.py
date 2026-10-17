@@ -12,7 +12,7 @@ import Utilities.Configuration.config as cfg
 from arguments import ArchName, SchemaName
 from gym_atena.global_env_prop import update_global_env_prop_from_cfg
 
-standard_library.install_aliases()  # NOQA
+standard_library.install_aliases()
 
 import logging
 import os
@@ -33,20 +33,14 @@ import gym_atena.lib.helpers as ATENAUtils
 from tensorboard import summary
 from tensorboardX import SummaryWriter
 
-#np.seterr(all='raise')
 
-SUMMARY_EPISODE_SLOT = 25  # write to summary every this number of episodes
+SUMMARY_EPISODE_SLOT = 25
 
 summary_writer = None
 
 
 def act_most_probable(agent, obs):
-    '''
-    Choose (single - not batch) action deterministically based on the highest probability
-    :param agent:
-    :param obs:
-    :return:
-    '''
+
     xp = agent.xp
     b_state = agent.batch_states([obs], xp, agent.phi)
 
@@ -68,14 +62,7 @@ def act_most_probable(agent, obs):
 
 
 def batch_act_with_mean(agent, batch_obs):
-    '''
-    get of batch actions for batch of observations
-    where actions are chosen using
-    the mean of the Gaussian with variance 0 (no sampling)
-    :param agent:
-    :param batch_obs:
-    :return:
-    '''
+
     xp = agent.xp
     b_state = agent.batch_states(batch_obs, xp, agent.phi)
 
@@ -108,7 +95,7 @@ def batch_act_and_train(self, batch_obs):
     assert len(self.batch_last_state) == num_envs
     assert len(self.batch_last_action) == num_envs
 
-    # action_distrib will be recomputed when computing gradients
+
     with chainer.using_config('train', False), chainer.no_backprop_mode():
         action_distrib, batch_value = self.model(b_state)
         batch_action = chainer.cuda.to_cpu(action_distrib.sample().data)
@@ -123,7 +110,7 @@ def batch_act_and_train(self, batch_obs):
 
 
 def log_results(logger, outdir, t, episode_idx, episode_r, statistics, episode_action_type_hist):
-    # find stream handler
+
     original_logging_level = logging.INFO
     stream_handler_found = False
     for handler in logger.root.handlers:
@@ -140,7 +127,7 @@ def log_results(logger, outdir, t, episode_idx, episode_r, statistics, episode_a
     if episode_idx % SUMMARY_EPISODE_SLOT == 0:
         logger.info('action types in episode: %s', episode_action_type_hist)
 
-    # set logging level back to original
+
     if stream_handler_found:
         handler.setLevel(original_logging_level)
 
@@ -155,7 +142,7 @@ def save_agent_replay_buffer(agent, t, outdir, suffix='', logger=None):
 def ask_and_save_agent_replay_buffer(agent, t, outdir, suffix=''):
     if hasattr(agent, 'replay_buffer') and \
             ask_yes_no('Replay buffer has {} transitions. Do you save them to a file?'.format(
-                len(agent.replay_buffer))):  # NOQA
+                len(agent.replay_buffer))):
         save_agent_replay_buffer(agent, t, outdir, suffix=suffix)
 
 
@@ -165,13 +152,12 @@ def train_agent(agent, env, steps, outdir, max_episode_len=None,
     logger = logger or logging.getLogger(__name__)
 
     episode_r = 0
-    # vector where each index contains the number that represents the type
-    # of action in step == index, in the current episode
-    # the actions are 0, 1, 2 for back, filter, group resp.
+
+
     episode_action_type_hist = []
     episode_idx = 0
 
-    # o_0, r_0
+
     obs = env.reset()
     r = 0
 
@@ -183,14 +169,14 @@ def train_agent(agent, env, steps, outdir, max_episode_len=None,
     try:
         while t < steps:
 
-            # a_t
+
             action = agent.act_and_train(obs, r)
             if episode_idx % SUMMARY_EPISODE_SLOT == 0:
-                # env.env.env exists only if args.monitor is set to True
+
                 action = env.env_prop.compressed2full_range(action)
                 action_disc = env.cont2dis(action)
                 episode_action_type_hist.append(action_disc[0])
-            # o_{t+1}, r_{t+1}
+
             obs, r, done, info = env.step(action)
             t += 1
             episode_r += r
@@ -201,9 +187,8 @@ def train_agent(agent, env, steps, outdir, max_episode_len=None,
 
             if done or episode_len == max_episode_len or t == steps:
                 agent.stop_episode_and_train(obs, r, done=done)
-                # logger.info('outdir:%s step:%s episode:%s R:%s',
-                #            outdir, t, episode_idx, episode_r)
-                # logger.info('statistics:%s', agent.get_statistics())
+
+
                 log_results(logger,
                             outdir,
                             t,
@@ -226,7 +211,7 @@ def train_agent(agent, env, steps, outdir, max_episode_len=None,
                         break
                 if t == steps:
                     break
-                # Start a new episode
+
                 episode_r = 0
                 episode_idx += 1
                 episode_len = 0
@@ -234,11 +219,11 @@ def train_agent(agent, env, steps, outdir, max_episode_len=None,
                 r = 0
 
     except (Exception, KeyboardInterrupt):
-        # Save the current model before being killed
+
         save_agent(agent, t, outdir, logger, suffix='_except')
         raise
 
-    # Save the final model
+
     save_agent(agent, t, outdir, logger, suffix='_finish')
 
 
@@ -258,31 +243,7 @@ def train_agent_with_evaluation(agent,
                                 save_best_so_far_agent=True,
                                 logger=None,
                                 ):
-    """Train an agent while regularly evaluating it.
 
-    Args:
-        agent: Agent to train.
-        env: Environment train the againt against.
-        steps (int): Number of total time steps for training.
-        eval_n_runs (int): Number of runs for each time of evaluation.
-        eval_interval (int): Interval of evaluation.
-        outdir (str): Path to the directory to output things.
-        max_episode_len (int): Maximum episode length.
-        step_offset (int): Time step from which training starts.
-        eval_explorer: Explorer used for evaluation.
-        eval_max_episode_len (int or None): Maximum episode length of
-            evaluation runs. If set to None, max_episode_len is used instead.
-        eval_env: Environment used for evaluation.
-        successful_score (float): Finish training if the mean score is greater
-            or equal to this value if not None
-        step_hooks (list): List of callable objects that accepts
-            (env, agent, step) as arguments. They are called every step.
-            See chainerrl.experiments.hooks.
-        save_best_so_far_agent (bool): If set to True, after each evaluation,
-            if the score (= mean return of evaluation episodes) exceeds
-            the best-so-far score, the current agent is saved.
-        logger (logging.Logger): Logger used in this function.
-    """
     global summary_writer
 
     logger = logger or logging.getLogger(__name__)
@@ -302,7 +263,7 @@ def train_agent_with_evaluation(agent,
                           n_episodes=eval_n_runs,
                           eval_interval=eval_interval, outdir=outdir,
                           max_episode_len=eval_max_episode_len,
-                          # explorer=eval_explorer,
+
                           env=eval_env,
                           step_offset=step_offset,
                           save_best_so_far_agent=save_best_so_far_agent,
@@ -327,28 +288,7 @@ def train_agent_batch(agent, env, steps, outdir, log_interval=None,
                       step_hooks=[], return_window_size=100, logger=None,
                       use_humans_reward=False,
                       humans_reward_interval=2048):
-    """Train an agent in a batch environment.
 
-    Args:
-        agent: Agent to train.
-        env: Environment train the againt against.
-        steps (int): Number of total time steps for training.
-        eval_interval (int): Interval of evaluation.
-        outdir (str): Path to the directory to output things.
-        log_interval (int): Interval of logging.
-        max_episode_len (int): Maximum episode length.
-        step_offset (int): Time step from which training starts.
-        return_window_size (int): Number of training episodes used to estimate
-            the average returns of the current agent.
-        successful_score (float): Finish training if the mean score is greater
-            or equal to thisvalue if not None
-        step_hooks (list): List of callable objects that accepts
-            (env, agent, step) as arguments. They are called every step.
-            See chainerrl.experiments.hooks.
-        logger (logging.Logger): Logger used in this function.
-        use_humans_reward: Boolean for whether or not to use humans sessions reward
-        humans_reward_interval: Number of episodes between reevaluation of agent performance
-    """
     env_prop = update_global_env_prop_from_cfg()
     schema_name = SchemaName(cfg.schema)
 
@@ -363,14 +303,13 @@ def train_agent_batch(agent, env, steps, outdir, log_interval=None,
     recent_returns_without_humanity = deque(maxlen=return_window_size)
     recent_rewards = defaultdict(lambda: deque(maxlen=return_window_size))
 
-    # a deque that stores the entropy values of the various actions distributions during training
+
     entropy_values = deque(maxlen=100)
 
-    # a counter for the number of actions from each type
+
     action_types_cntr = {"back": 0, "filter": 0, "group": 0}
 
-    # a counter where key is a function index (numerical ID) and value
-    # is number of occurrences
+
     actions_cntr = defaultdict(int)
 
     agent_humanity_info = {}
@@ -381,7 +320,7 @@ def train_agent_batch(agent, env, steps, outdir, log_interval=None,
     episode_idx = np.zeros(num_envs, dtype='i')
     episode_len = np.zeros(num_envs, dtype='i')
 
-    # o_0, r_0
+
     obss = env.reset()
     rs = np.zeros(num_envs, dtype='f')
 
@@ -392,24 +331,16 @@ def train_agent_batch(agent, env, steps, outdir, log_interval=None,
     try:
         while t < steps:
 
-            # a_t
-            #actions = agent.batch_act_and_train(obss)
+
             actions, actions_distrib = batch_act_and_train(agent, obss)
 
-            # trace entropy_values
+
             entropy_values.append(actions_distrib.entropy.data[0])
 
-            # o_{t+1}, r_{t+1}
+
             obss, rs, dones, infos = env.step(actions)
 
-            # Update actions of agent to actual actions made in environment
-            # This step is being done because we change illegal filter actions
-            # to legal actions inside the environment
-            # if arch is ArchName.FF_PARAM_SOFTMAX:
-            #     for info_idx, info in enumerate(infos):
-            #         actions[info_idx] = info["actual_parametric_softmax_idx"]
 
-            # add action types to counter
             action_types = []
             for action in actions:
                 if arch is ArchName.FF_GAUSSIAN:
@@ -424,7 +355,7 @@ def train_agent_batch(agent, env, steps, outdir, log_interval=None,
 
             episode_r_without_humanity += rs
 
-            # save rewards for logging purposes
+
             for i, info in enumerate(infos):
                 action_type = action_types[i]
                 step_reward_info = info["reward_info"]
@@ -436,29 +367,24 @@ def train_agent_batch(agent, env, steps, outdir, log_interval=None,
                             or (action_type == "filter" and reward_type in {"kl_distance", "diversity"})):
                         recent_rewards[reward_type].append(value)
 
-            # add rewards to rewards of episode
+
             episode_r += rs
 
             episode_len += 1
 
-            # Compute mask for done and reset
+
             if max_episode_len is None:
                 resets = np.zeros(num_envs, dtype=bool)
             else:
                 resets = (episode_len == max_episode_len)
-            # Agent observes the consequences
+
             agent.batch_observe_and_train(obss, rs, dones, resets)
 
-            # Make mask. 0 if done/reset, 1 if pass
+
             end = np.logical_or(resets, dones)
             not_end = np.logical_not(end)
 
-            # For episodes that ends, do the following:
-            #   1. increment the episode count
-            #   2. record the return
-            #   3. clear the record of rewards
-            #   4. clear the record of the number of steps
-            #   5. reset the env to start a new episode
+
             episode_idx += end
             recent_returns.extend(episode_r[end])
             recent_returns_without_humanity.extend(episode_r_without_humanity[end])
@@ -473,12 +399,12 @@ def train_agent_batch(agent, env, steps, outdir, log_interval=None,
                 for hook in step_hooks:
                     hook(env, agent, t)
 
-            # log and save using Tensorboard
+
             if (log_interval is not None
                     and t >= log_interval
                     and t % log_interval < num_envs):
                 logger.info(
-                    'outdir:{} step:{} episode:{} last_R: {} average_R:{}'.format(  # NOQA
+                    'outdir:{} step:{} episode:{} last_R: {} average_R:{}'.format(
                         outdir,
                         t,
                         np.sum(episode_idx),
@@ -499,13 +425,8 @@ def train_agent_batch(agent, env, steps, outdir, log_interval=None,
 
                 log_idx += 1
                 logger.info('statistics: {}'.format(agent.get_statistics()))
-                # k_probs = 18
-                # k_highest_act_probs = actions_distrib.k_highest_probablities(k_probs)
-                # avg_k_highest_act_probs = np.mean(k_highest_act_probs, axis=0)
-                # logger.info('actions_distribution ({} highest probs):\n{}'.format(
-                #     k_probs, k_highest_act_probs))
-                # summary_writer.add_scalar('avg_highest_act_prob', avg_k_highest_act_probs[0], t)
-                # summary_writer.add_scalar('avg_second_highest_act_prob', avg_k_highest_act_probs[1], t)
+
+
                 summary_writer.add_scalar('avg_entropy', np.mean(entropy_values), t)
 
             if evaluator:
@@ -516,21 +437,20 @@ def train_agent_batch(agent, env, steps, outdir, log_interval=None,
                         break
 
     except (Exception, KeyboardInterrupt):
-        # save the actions counter before killed
-        # Store data (serialize)
+
+
         if arch is ArchName.FF_PARAM_SOFTMAX or arch is ArchName.FF_SOFTMAX:
             actions_cntr_path = os.path.join(outdir, 'actions_cntr.pickle')
             with open(actions_cntr_path, 'wb') as handle:
                 pickle.dump(actions_cntr, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        # Save the current model before being killed
+
         save_agent(agent, t, outdir, logger, suffix='_except')
         env.close()
         if evaluator:
             evaluator.env.close()
 
-        # save the current difficult human observations before killed
-        # Store data (serialize)
+
         if not cfg.obs_with_step_num and cfg.stack_obs_num == 1:
             failure_obs_path = os.path.join(outdir, 'hard_obs.pickle')
             with open(failure_obs_path, 'wb') as handle:
@@ -538,18 +458,17 @@ def train_agent_batch(agent, env, steps, outdir, log_interval=None,
 
         raise
     else:
-        # save the actions counter
-        # Store data (serialize)
+
+
         if arch is ArchName.FF_PARAM_SOFTMAX or arch is ArchName.FF_SOFTMAX:
             actions_cntr_path = os.path.join(outdir, 'actions_cntr.pickle')
             with open(actions_cntr_path, 'wb') as handle:
                 pickle.dump(actions_cntr, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        # Save the final model
+
         save_agent(agent, t, outdir, logger, suffix='_finish')
 
-        # save the final difficult human observations
-        # Store data (serialize)
+
         if not cfg.obs_with_step_num and cfg.stack_obs_num == 1:
             failure_obs_path = os.path.join(outdir, 'hard_obs.pickle')
             with open(failure_obs_path, 'wb') as handle:
@@ -575,35 +494,7 @@ def train_agent_batch_with_evaluation(agent,
                                       use_humans_reward=False,
                                       humans_reward_interval=2048
                                       ):
-    """Train an agent while regularly evaluating it.
 
-    Args:
-        agent: Agent to train.
-        env: Environment train the againt against.
-        steps (int): Number of total time steps for training.
-        eval_n_runs (int): Number of runs for each time of evaluation.
-        eval_interval (int): Interval of evaluation.
-        outdir (str): Path to the directory to output things.
-        log_interval (int): Interval of logging.
-        max_episode_len (int): Maximum episode length.
-        step_offset (int): Time step from which training starts.
-        return_window_size (int): Number of training episodes used to estimate
-            the average returns of the current agent.
-        eval_max_episode_len (int or None): Maximum episode length of
-            evaluation runs. If set to None, max_episode_len is used instead.
-        eval_env: Environment used for evaluation.
-        successful_score (float): Finish training if the mean score is greater
-            or equal to thisvalue if not None
-        step_hooks (list): List of callable objects that accepts
-            (env, agent, step) as arguments. They are called every step.
-            See chainerrl.experiments.hooks.
-        save_best_so_far_agent (bool): If set to True, after each evaluation,
-            if the score (= mean return of evaluation episodes) exceeds
-            the best-so-far score, the current agent is saved.
-        logger (logging.Logger): Logger used in this function.
-        use_humans_reward: Boolean for whether or not to use humans sessions reward
-        humans_reward_interval: Number of episodes between reevaluation of agent performance
-    """
     global summary_writer
 
     logger = logger or logging.getLogger(__name__)

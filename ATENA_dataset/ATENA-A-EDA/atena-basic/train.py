@@ -1,4 +1,3 @@
-#from collections import namedtuple
 from Utilities.Utility_Functions import initialize_agent_and_env
 from arguments import AlgoName
 
@@ -36,14 +35,14 @@ def train_or_evaluate(
             save_best_so_far_agent=True,
         )
     elif args.algo is AlgoName.CHAINERRL_PPO:
-        # Linearly decay the learning rate to zero
+
         def lr_setter(env, agent, value):
             agent.optimizer.alpha = value
 
         lr_decay_hook = experiments.LinearInterpolationHook(
             args.steps, args.adam_lr, 0, lr_setter)
 
-        # Linearly decay the clipping parameter to zero
+
         def clip_eps_setter(env, agent, value):
             agent.clip_eps = value
 
@@ -74,7 +73,7 @@ def train_or_evaluate(
 
 if __name__ == '__main__':
     agent, env, args = initialize_agent_and_env()
-    # train model
+
     train_or_evaluate(args, agent,
                       args.env,
                       env,

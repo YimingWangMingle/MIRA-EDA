@@ -13,7 +13,7 @@ from models.clipped_gaussian.train_trpo_gym import ClippedGaussianPolicy
 
 
 class ObsNormalizedModel(chainerrl.agents.a3c.A3CSeparateModel):
-    """An example of A3C feedforward Gaussian policy."""
+
 
     def __init__(self, policy, vf, obs_size):
         super().__init__(policy, vf)
@@ -50,14 +50,14 @@ class PPOModel(ClippedModel):
             print("""\
     This example only supports gym.spaces.Box observation spaces. To apply it to
     other observation spaces, use a custom phi function that convert an observation
-    to numpy.ndarray of numpy.float32.""")  # NOQA
+    to numpy.ndarray of numpy.float32.""")
             return
 
-        # Parameterize log std
+
         def var_func(x): return F.exp(x) ** 2
 
         assert isinstance(action_space, gym.spaces.Box)
-        # Use a Gaussian policy for continuous action spaces
+
         if use_clipped_gaussian:
             policy = \
                 ClippedGaussianPolicy(
@@ -69,7 +69,7 @@ class PPOModel(ClippedModel):
                     nonlinearity=F.tanh,
                     var_type='diagonal',
                     var_func=var_func,
-                    var_param_init=0,  # log std = 0 => std = 1
+                    var_param_init=0,
                     min_action=action_space.low.astype(np.float32),
                     max_action=action_space.high.astype(np.float32),
                 )
@@ -84,10 +84,10 @@ class PPOModel(ClippedModel):
                     nonlinearity=F.tanh,
                     var_type='diagonal',
                     var_func=var_func,
-                    var_param_init=0,  # log std = 0 => std = 1
+                    var_param_init=0,
                 )
 
-        # Use a value function to reduce variance
+
         vf = chainerrl.v_functions.FCVFunction(
             obs_space.low.size,
             n_hidden_channels=n_hidden_channels,
@@ -105,14 +105,14 @@ class PPOModel(ClippedModel):
         opt = chainer.optimizers.Adam(adam_lr)
         opt.setup(model)
 
-        # Draw the computational graph and save it in the output directory.
+
         fake_obs = chainer.Variable(
             policy.xp.zeros_like(obs_space.low, dtype=np.float32)[None],
             name='observation')
         chainerrl.misc.draw_computational_graph(
             [model(fake_obs)], os.path.join(outdir, 'model'))
 
-        # Hyperparameters in http://arxiv.org/abs/1709.06560
+
         agent = chainerrl.agents.PPO(
             model=model,
             optimizer=opt,
@@ -128,4 +128,3 @@ class PPOModel(ClippedModel):
             agent.load(load)
 
         self._agent = agent
-

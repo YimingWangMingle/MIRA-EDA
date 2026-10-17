@@ -1,14 +1,3 @@
-"""Measure a fresh local experiment process and its descendants.
-
-Example: python scripts/measure_experiment.py --output output/resources/run1
-         -- python RL-launcher.py ...
-
-The wall time includes imports, initialization, training, inline evaluation
-and final saving. Peak memory is sampled SUM(RSS) over the local process tree,
-not unique physical memory (shared pages can be counted more than once).
-Use an isolated local Ray instance; remote/existing Ray workers are excluded.
-"""
-
 import argparse
 import csv
 import json
@@ -111,8 +100,8 @@ def main():
                 writer.writeheader()
                 writer.writerows(profile["time_windows"])
         if status == 'completed' and args.profile_mode == 'aggregate' and profile['query_p95_seconds'] is not None:
-            # These files are created only by this measurement's profiler. Final
-            # exact percentiles are now in resources.json and the two CSV reports.
+
+
             for path in events_dir.glob('latencies_*.bin'):
                 path.unlink()
     print(output / "resources.json")

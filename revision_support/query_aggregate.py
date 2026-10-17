@@ -1,4 +1,3 @@
-"""Compact query totals with temporary binary durations for exact percentiles."""
 from collections import defaultdict
 import hashlib
 import json

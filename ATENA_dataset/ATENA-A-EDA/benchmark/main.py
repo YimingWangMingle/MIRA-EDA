@@ -15,20 +15,7 @@ from atena.simulation.dataset import (
 from atena.simulation.utils import random_action_generator
 
 if __name__ == "__main__":
-    # cyber_actions_simulator = ActionsSimulator.factory_from_schema_and_dataset_name(
-    #     schema_name=SchemaName.CYBER, dataset_name=CyberDatasetName.DATASET1
-    # )
-    # cyber_steps_info = cyber_actions_simulator.run_n_random_actions(n=10)
-    # print(cyber_steps_info)
-    #
-    # flights_actions_simulator = ActionsSimulator.factory_from_schema_and_dataset_name(
-    #     schema_name=SchemaName.FLIGHTS, dataset_name=FlightsDatasetName.DATASET1
-    # )
-    # flights_steps_info = flights_actions_simulator.run_n_random_actions(n=10)
-    # print(flights_steps_info)
 
-    # for reference in cyber1_references:
-    #     print(cyber_actions_simulator.run_actions(reference))
 
     eval_instances = []
 
@@ -49,7 +36,5 @@ if __name__ == "__main__":
         NormalizedDisplaysEdaSimMetric(eval_instances)
     ]
 
-    # for eval_metric in eval_metrics:
-    #     print(eval_metric.compute())
 
     get_dataframe_all_eval_metrics(eval_instances)

@@ -1,4 +1,3 @@
-"""Validate immutable Covertype cache inputs; certify legacy contents explicitly."""
 import ast
 import hashlib
 import json
@@ -24,11 +23,7 @@ def sha256(path):
 
 
 def builder_fingerprint():
-    """Hash construction source consistently on Python 3.8-3.11.
 
-    AST dumps vary by Python version (notably subscript nodes). Use the AST
-    only to locate source segments, and include data schema constants too.
-    """
     root = Path(__file__).parent
     parts = []
     for name in ('data.py', 'actions.py', 'fixed_sets.py'):
@@ -105,7 +100,7 @@ def validate_cache(directory, csv_path, target_path, action_labels, expected):
 
 
 def _graph_column(constraints, action, n_bins):
-    """Vectorized equivalent of _apply_action_to_constraint for certification."""
+
     result = np.array(constraints, copy=True)
     n_cont = result.shape[1] - 3
     op = action.op
@@ -128,12 +123,7 @@ def _graph_column(constraints, action, n_bins):
 
 
 def certify_cache(directory, csv_path, target_path, actions, expected, progress=None):
-    """Check every cached set/state/target/edge before writing only a sidecar.
 
-    Sampling seed is the legacy metadata declaration. Certification establishes
-    consistency of all stored values with current source data and graph rules;
-    it does not regenerate the selected universe or change its set IDs.
-    """
     from .data import load_covertype
     from .fixed_sets import _state_for_indices
     from .targets import load_target_items
@@ -164,8 +154,8 @@ def certify_cache(directory, csv_path, target_path, actions, expected, progress=
         if len(rows) != universe.size_for_set(i):
             raise ValueError('Cache set size differs from source data at set ' + str(i))
         state = _state_for_indices(data, constraint, rows)
-        # Float32 reductions differ slightly across NumPy/CPU implementations
-        # (including near-zero standardized means on the 581,012-row root).
+
+
         if not np.allclose(state, universe.state_for_set(i), rtol=1e-4, atol=1e-5):
             raise ValueError('Cache state differs from source data at set ' + str(i))
         if not np.array_equal(rows[target_mask[rows]], universe.targets_for_set(i)):

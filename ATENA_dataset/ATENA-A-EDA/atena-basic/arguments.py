@@ -27,12 +27,10 @@ class SchemaName(Enum):
 
 
 class FilterTermsBinsSizes(Enum):
-    """
-    The way sized of bins to each filter terms are mapped
-    """
+
     EQUAL_WIDTH = 'EQUAL_WIDTH'
     CUSTOM_WIDTH = 'CUSTOM_WIDTH'
-    EXPONENTIAL = 'EXPONENTIAL'  # Bins' sizes grows exponentially
+    EXPONENTIAL = 'EXPONENTIAL'
 
 
 algo_names = [e.value for e in AlgoName]

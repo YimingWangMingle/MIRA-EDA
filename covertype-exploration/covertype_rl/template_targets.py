@@ -1,5 +1,3 @@
-"""Reproducible seed-1-style targets; not the recovered historical search."""
-
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,7 +8,7 @@ from .targets import TARGET_SCHEMA_VERSION, _predicate_region_for_anchor, _regio
 
 
 def write_new_json(path, payload):
-    """Never replace an existing target or generation record."""
+
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("x", encoding="utf-8", newline="\n") as stream:
@@ -21,12 +19,7 @@ def write_new_json(path, payload):
 def generate_template_targets(
     data, reference, seed, candidates_per_region=1024, excluded_constraints=()
 ):
-    """Match reference region structure and size, without model feedback.
 
-    A fixed candidate budget avoids selecting the search effort after seeing
-    training performance. Distinct regions may overlap across target sets, but
-    each generated target contains exactly the sum of its regional quotas.
-    """
     if candidates_per_region < 1:
         raise ValueError("candidates_per_region must be positive")
     rng = np.random.default_rng(int(seed))

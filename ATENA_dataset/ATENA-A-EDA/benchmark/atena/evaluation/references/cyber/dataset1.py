@@ -114,7 +114,7 @@ reference5 = [
                 aggregation_function=AggregationFunction.COUNT),
     FilterAction(filtered_column=Column('ip_dst'), filter_operator=FilterOperator.EQUAL, filter_term='82.108.87.145'),
     GroupAction(grouped_column=Column('tcp_dstport'), aggregated_column=Column('packet_number'),
-                aggregation_function=AggregationFunction.COUNT),    
+                aggregation_function=AggregationFunction.COUNT),
 ]
 
 

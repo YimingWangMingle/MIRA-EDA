@@ -4,11 +4,7 @@ import Utilities.Configuration.config as cfg
 
 
 def decompress_and_discretize_actions(agent_actions, env_prop=None):
-    """
-    DEPRECATED!!!!
-    :param agent_actions: a list of raw agent actions (compressed and continuous)
-    :return: a list of the same actions non-compressed and discretized (except for filter term)
-    """
+
     agent_discrete_actions = []
     arch = ArchName(cfg.arch)
     for action in agent_actions:

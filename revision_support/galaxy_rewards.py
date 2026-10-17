@@ -1,10 +1,9 @@
-"""One reward CSV schema for PCA collection and Galaxy learning episodes."""
 import csv
 from pathlib import Path
 
 from .csv_output import locked_csv_append
 
-FIELDS = ('episode', 'extrinsic_reward', 'interestingness', 'mira_bonus',
+FIELDS = ('episode', 'extrinsic_reward', 'mira_bonus',
           'exploration_reward', 'total_reward', 'sets_viewed',
           'cumulative_unique_sets_viewed', 'target_efficiency',
           'cumulative_extrinsic_reward', 'cumulative_target_efficiency', 'z_source',

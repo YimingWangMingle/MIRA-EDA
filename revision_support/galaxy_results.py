@@ -1,6 +1,3 @@
-"""Account for one Galaxy operator result using the shared encoder."""
-
-
 def score_returned_sets(encoder, datasets, parent):
     encoded, reward, interestingness = encoder.encode_datasets(datasets, parent)
     width = len(encoder.set_description)

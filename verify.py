@@ -1,4 +1,3 @@
-"""Verify release source/data; optionally validate the Linux training runtime."""
 import argparse
 import ast
 import hashlib
@@ -19,7 +18,9 @@ def sha256(path):
 
 def verify_source(root=ROOT):
     root = Path(root)
-    sources = list(root.rglob('*.py'))
+    sources = [path for path in root.rglob('*.py')
+               if not any(part.startswith('.venv') or part == '__pycache__'
+                          for part in path.relative_to(root).parts[:-1])]
     local_roots = {'app', 'rl', 'baselines', 'revision_support', 'covertype_rl', 'atena_common', 'atena_baselines', 'mira'}
     banned = ('ExplorationWup', 'create_exploration_wup', 'bootstrap_active',
               'escape_active', 'candidate_prior', 'success_direction_reuse', 'legacy_artifacts')
@@ -62,7 +63,7 @@ def verify_source(root=ROOT):
 
 
 def parser_from_source(root, dataset, method):
-    """Exercise real CLI declarations without importing TensorFlow/Ray or data."""
+
     import copy
     from run import ABLATIONS, BASELINES
     if method in ABLATIONS or method == 'mira_no_ext':

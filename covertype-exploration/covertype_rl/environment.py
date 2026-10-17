@@ -222,11 +222,7 @@ class CovertypeRLEnvironment:
         return metrics["state"], metrics, self.set_id(self.constraints), valid
 
     def random_valid_set_step(self, rng, max_tries=80):
-        """Jump to an independently sampled valid predicate set.
 
-        This is used only by the strict random baseline. It avoids turning the
-        random baseline into a random walk with accidental local structure.
-        """
         fallback_constraints = self.constraints
         fallback_indices = self._indices_for(fallback_constraints)
 

@@ -1,6 +1,3 @@
-"""Reuse a compiled inference graph without Keras predict's data adapter."""
-
-
 def predict(model, inputs):
     import tensorflow as tf
     function = getattr(model, '_mira_inference_function', None)

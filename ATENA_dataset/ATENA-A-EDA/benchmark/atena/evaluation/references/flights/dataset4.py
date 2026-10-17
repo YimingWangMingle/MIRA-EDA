@@ -122,4 +122,3 @@ reference5 = [
 flights4_references = [reference1, reference2, reference3, reference4, reference5]
 
 assert all([len(reference) == 12 for reference in flights4_references])
-

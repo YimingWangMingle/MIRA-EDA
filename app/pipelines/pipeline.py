@@ -13,7 +13,6 @@ from .predicateitem import JoinParameters, PredicateItem, PredicateItemGroup
 from .tools.operator_logging import loggable_operator
 
 
-
 class Pipeline:
     SLASH_ESCAPER = "--escaped_slash--"
 
@@ -38,7 +37,7 @@ class Pipeline:
         if len(self.columns_to_discretize) > 0:
             self.columns_to_discretize = self.columns_to_discretize.apply(lambda column: f"{column.table}.{column.column}", axis=1).to_list()
 
-        # Initial table joins
+
         joined_tables = self.initial_collection_names[:1]
         self.initial_joins: List[JoinParameters] = []
         tables_to_join = self.initial_collection_names[1:]
@@ -69,11 +68,11 @@ class Pipeline:
                 raise Exception(
                     "Multiple relations possible to join " + target_collection_name)
 
-        # Exploration dimensions selection
+
         self.exploration_columns = exploration_columns
         if len(self.exploration_columns) == 0:
-            #     self.initial_collection = self.initial_collection[self.exploration_columns]
-            # else:
+
+
             self.exploration_columns = list(self.initial_collection.columns)
 
         self.ordered_dimensions = {}
@@ -103,29 +102,22 @@ class Pipeline:
             return interesting_attributes
         else:
             return attributes.iloc[0:count].attribute.tolist()
-        # for attribute in dataframe:
-        #     if na_ratio[attribute] < 0.3 and density_ratio[attribute] < 0.3:
-        #         interesting_attributes.append(attribute)
-        # if len(interesting_attributes) == 0:
-        #     interesting_attributes = dataframe.columns
-        # return sorted(interesting_attributes)
+
 
     def load_table(self, table_name):
         csv_path = f"{self.database_folder}/{table_name}.csv"
 
-        # 读取 column_forced_types.csv 中声明的类型
+
         forced_type_columns = self.column_forced_types[self.column_forced_types.table == table_name]
         dtype_map = {}
         for _, column in forced_type_columns.iterrows():
             dtype_map[column.column] = column.type
 
-        # 关键修复：galaxies.csv 里的 objID 是超大整数，必须强制按字符串读取
-        # 否则容易被 pandas 当成 float64，精度丢失后无法和 target json 正确匹配
+
         if table_name == "galaxies":
             dtype_map["objID"] = "string"
 
-        # A malformed input/schema is a failed run, not permission to change
-        # declared column types and silently retry with a different dataset.
+
         df = pd.read_csv(csv_path, dtype=dtype_map) if dtype_map else pd.read_csv(csv_path)
 
         return df.add_prefix(table_name + ".")
@@ -163,7 +155,7 @@ class Pipeline:
 
     @loggable_operator()
     def by_join(self, dataset: Dataset, target_collection_name: str, left_attribute: str, right_attribute: str, other_collection: str = None, drop_column="", logger=None):
-        # other_collection = other_collection if other_collection != None else self.initial_collection_name
+
         target_collection = self.load_table(target_collection_name)
         join_parameters = JoinParameters(
             target_collection_name, left_attribute, right_attribute, other_collection=other_collection)
@@ -183,7 +175,7 @@ class Pipeline:
 
     @loggable_operator()
     def by_neighbors(self, dataset: Dataset, attributes: List[str], logger=None):
-        # TODO: manage errors properly
+
         if len(attributes) == 0:
             attributes = map(
                 lambda item: item.attribute in self.ordered_dimensions, dataset.predicate.components)
@@ -206,7 +198,7 @@ class Pipeline:
                             dataset, attribute, index + 1)
                         if len(new_set.data)>0:
                             results.append(new_set)
-        return results 
+        return results
 
     @loggable_operator()
     def by_distribution(self, dataset: Dataset, logger=None):
@@ -216,7 +208,7 @@ class Pipeline:
             for attribute in ordered_attributes_in_description:
                 value = dataset.predicate.get_filter_values(attribute)[0]
                 dataset_vector.append(self.ordered_dimensions[attribute].index(str(value)))
- 
+
             result_vectors = []
             new_vector = [x+1 for x in dataset_vector]
             while all([x < self.discrete_categories_count for x in new_vector]):
@@ -226,55 +218,27 @@ class Pipeline:
             new_vector = [x-1 for x in dataset_vector]
             while all([x >= 0 for x in new_vector]):
                 result_vectors.append(new_vector)
-                new_vector = [x-1 for x in new_vector]    
+                new_vector = [x-1 for x in new_vector]
 
             if len(result_vectors) == 0:
                 return [dataset]
 
             result_sets = []
-            for vector in result_vectors:         
+            for vector in result_vectors:
                 new_dataset = dataset.copy()
                 for i in range(len(ordered_attributes_in_description)):
                     attribute = ordered_attributes_in_description[i]
                     new_dataset.predicate.remove_attribute(attribute)
-                    new_dataset.predicate.append(PredicateItem(attribute, "==", self.ordered_dimensions[attribute][vector[i]], is_category=True))   
+                    new_dataset.predicate.append(PredicateItem(attribute, "==", self.ordered_dimensions[attribute][vector[i]], is_category=True))
                 self.reload_set_data(dataset=new_dataset, apply_joins=True, apply_predicate=True)
                 result_sets.append(new_dataset)
-            
+
             return result_sets
-            # possible_combinations= list(itertools.product(range(10), repeat=len(ordered_attributes_in_description)))
-            # for index, combination in enumerate(possible_combinations):
-            #     if all(item == combination[0] for item in combination):
-            #         combination = list(combination)
-            #         combination[0] += 0.00000001
-            #         possible_combinations[index] = tuple(combination)
-            # res = distance.cdist([dataset_vector], possible_combinations, metric="correlation")
-            # res = [[distance.correlation(dataset_vector, x) for x in possible_combinations]]
-            # print(res)
-            # combinations_with_scores = list(zip(possible_combinations, res[0]))
-            # combinations_with_scores = [x for x in combinations_with_scores if not np.isnan(x[1]) ]
-            # combinations_with_scores.sort(key=lambda x: x[1])
-            # print(combinations_with_scores)
+
+
         else:
             return [dataset]
 
-
-        # magnitude_table_prefix= "galaxies."
-        # magnitude_attributes = ["u", "g", "r", "i", "z"]
-        # magnitude_difference_attributes = ["umg","umr","umi","umz","gmr","gmi","gmz","rmi","rmz","imz"]
-        # ordered_attributes_in_description = list(map(lambda x: x.attribute.replace(magnitude_table_prefix, ""), dataset.predicate.components))
-        # magnitudes_in_description = [x for x in ordered_attributes_in_description if x in magnitude_attributes]
-        # result = Dataset()
-        # for i in range(len(magnitudes_in_description)):
-        #     for j in range(i+1, len(magnitudes_in_description)):
-        #         if f"{magnitudes_in_description[i]}m{magnitudes_in_description[j]}" in magnitude_difference_attributes:
-        #             difference_attribute = f"{magnitude_table_prefix}{magnitudes_in_description[i]}m{magnitudes_in_description[j]}"
-        #         else:
-        #             difference_attribute = f"{magnitude_table_prefix}{magnitudes_in_description[j]}m{magnitudes_in_description[i]}"
-        #         most_common_difference_value = dataset.data[difference_attribute].value_counts().index[0]
-        #         result.predicate.append(PredicateItem(difference_attribute, '==', value=most_common_difference_value, is_category=True))
-
-        # return self.reload_set_data(result, apply_joins=True, apply_predicate=True, initialize_data=True)
 
     def get_neighboring_set(self, dataset: Dataset, attribute: str, value_index: int):
         new_dataset = Dataset(predicate=copy.deepcopy(
@@ -338,19 +302,7 @@ class Pipeline:
 
                 candidates = sorted(candidates, key=lambda candidate: len(candidate.data), reverse=True)
                 return candidates[0:number_of_sets_to_return]
-                    # new_count = len(new_dataset.data)
-                    # # if new_count == original_count:
-                    # #     dataset.predicate = new_predicate
-                    # # el
-                    # if len(new_sets) < number_of_sets_to_return:
-                    #     new_sets.append(new_dataset)
-                    # else:
-                    #     for other_set_index, other_set in enumerate(new_sets):
-                    #         if new_count < len(other_set.data) and new_count != original_count:
-                    #             new_sets[other_set_index] = new_dataset
 
-                # print(f"New set item count: {smallest_item_count}")
-                # return new_sets
 
     def by_overlap(self, dataset: Dataset, number_of_groups=3, max_seconds=1, return_datasets=True, logger=None):
         raise NotImplementedError()
@@ -377,6 +329,3 @@ class Pipeline:
                 dataset.data = dataset.data[dataset.data[item.attribute]
                                             == item.value]
         return dataset.data
-        # for item in filter(lambda item: item.is_multiple_line_string, predicate.components):
-        #     dataset.data = self.query_predicate_item(dataset, item)
-        # return dataset.data.query(str(predicate),  engine="python")

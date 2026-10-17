@@ -55,8 +55,7 @@ def build_action_space(n_continuous=10, n_bins=10):
         actions.append(Action("by_facet_soil", value=value))
     actions.append(Action("by_superset_soil"))
 
-    # Galaxy by_distribution returns a path of result sets along ordered
-    # dimensions. Expose the same path as multiple fixed-graph actions.
+
     max_distribution_step = max(1, int(n_bins) - 1)
     for delta in range(-max_distribution_step, max_distribution_step + 1):
         if delta != 0:

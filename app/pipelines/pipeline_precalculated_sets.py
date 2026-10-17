@@ -2,7 +2,7 @@ import ast
 import fnmatch
 import os
 import time
-# from memory_profiler import profile
+
 from datetime import datetime
 from pprint import pprint
 
@@ -29,10 +29,8 @@ class PipelineWithPrecalculatedSets(Pipeline):
                 "definition": ast.literal_eval
             }, index_col="id"
         )
-        # self.index = pd.read_csv(
-        #     f"{self.index_folder}/index.csv",
-        #     index_col=["group1", "group2"],
-        # )
+
+
         self.correspondences = pd.read_csv(
             f"{self.index_folder}/correspondences.csv")
 
@@ -94,40 +92,7 @@ class PipelineWithPrecalculatedSets(Pipeline):
             else:
                 dataset.set_id = self.find_group_id(dataset)
         return datasets
-        
-        # if len(dataset.predicate.components) == 1:
-        #     print("No superset was found!")
-        #     return dataset
-        # try:
-        #     current_set = self.groups.loc[dataset.set_id]
-        #     overlapping_groups_index = self.index.loc[
-        #         dataset.set_id].sort_values(by="overlap", ascending=False)
-        #     overlapping_group_ids = [id for id in list(
-        #         overlapping_groups_index.index.values) if not id in set_ids_to_ignore]
-        #     overlapping_groups = self.groups.iloc[overlapping_group_ids]
-        #     # current_group.members = ast.literal_eval(current_group.members)
-        #     new_group = None
-        #     new_group_index = None
-        #     for index, group in overlapping_groups.iterrows():
-        #         # group.members = ast.literal_eval(group.members)
-        #         if index != dataset.set_id and len(group.members & current_set.members) == len(
-        #                 current_set.members):
-        #             new_group = group
-        #             new_group_index = index
-        #             break
 
-        #     if new_group_index == None:
-        #         print("No superset was found!")
-        #     else:
-        #         print(
-        #             f"Original set item count: {len(current_set.members)} new set item count: {len(new_group.members)}")
-        #         dataset = self.get_groups_as_datasets(
-        #             group_ids=[new_group_index])[0]
-        # except (IndexError, KeyError):
-        #     print(
-        #         "Superset impossible: No set matching the current predicate was found"
-        #     )
-        # return dataset
 
     @loggable_operator()
     def by_overlap(self, dataset, number_of_groups=3, max_seconds=1, return_datasets=True, logger=None):
@@ -176,13 +141,11 @@ class PipelineWithPrecalculatedSets(Pipeline):
                                 max_seconds or selection_overlap_sum == 0):
                             break
                         sets_counter += 1
-                        # Overlap indexes for the current unselected set
-                        # indexes = self.index.loc[(unselected_group_id, selected_groups_ids), "overlap"].reindex(
-                        #     selected_groups_ids, level="group2")
-                        # Option below much faster than option above !
+
+
                         indexes = self.index.loc[unselected_group_id].reindex(
                             overlapping_group_ids)
-                        # Loop on the selected sets to test replacement
+
                         for selected_group_id in selected_groups_ids:
                             other_selected_group_ids = selected_groups_ids.copy()
                             other_selected_group_ids.remove(selected_group_id)
@@ -196,7 +159,7 @@ class PipelineWithPrecalculatedSets(Pipeline):
                                 other_selected_group_ids.append(
                                     unselected_group_id)
                                 selected_groups_ids = other_selected_group_ids
-                                # Other selected sets overlap re-calculation
+
                                 selection_overlap_sum = overlap_to_selection_if_replaced
                                 interesting_indexes = self.index.loc[
                                     selected_groups_ids, :]
@@ -219,8 +182,7 @@ class PipelineWithPrecalculatedSets(Pipeline):
                 print(
                     f"sets studied: {sets_counter} time spent: {(datetime.now() - startTime).total_seconds()}s sets replaced:{set_replacements_counter}"
                 )
-                # print(selected_groups_ids)
-                # print(overlapping_groups.loc[selected_groups_ids])
+
 
                 if return_datasets == False:
                     return overlapping_groups.loc[selected_groups_ids]
@@ -247,11 +209,11 @@ class PipelineWithPrecalculatedSets(Pipeline):
         else:
             return Pipeline.by_distribution(self, dataset, return_datasets)
 
- 
+
     def attribute_value_selection(self, dataset, reverse_selectivities):
         set_selectivity_list = self.get_selectivity_list(
             dataset, ascending=reverse_selectivities)
-        # We take the three with highest selectivity (or lowest if by dissim)
+
         selected_attribute_values = set_selectivity_list.iloc[0:3].apply(
             lambda x: (x.attribute, x.value), axis=1)
         print("Selected a=v: ")

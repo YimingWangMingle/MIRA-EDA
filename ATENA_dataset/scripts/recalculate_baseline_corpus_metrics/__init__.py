@@ -69,14 +69,14 @@ def _masked_probs(probs, mask):
     return probs / total
 
 
-def rollout_argmax(env, model):
+def rollout_argmax(env, model, direction=None):
     state = env.reset()
     done = False
     while not done:
-        probs, _ = model(
-            np.asarray(state, dtype=np.float32).reshape(1, -1),
-            training=False,
-        )
+        policy_state = np.asarray(state, dtype=np.float32).reshape(1, -1)
+        if direction is not None:
+            policy_state = np.concatenate([policy_state, np.asarray(direction, dtype=np.float32).reshape(1, -1)], axis=1)
+        probs, _ = model(policy_state, training=False)
         policy = _masked_probs(probs.numpy()[0], env.legal_action_mask())
         state, _, done, _ = env.step(int(np.argmax(policy)))
     if len(env.actions) != 12:

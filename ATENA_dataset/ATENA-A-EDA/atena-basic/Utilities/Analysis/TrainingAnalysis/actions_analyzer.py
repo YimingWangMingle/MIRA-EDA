@@ -18,22 +18,17 @@ import Utilities.Configuration.config as cfg
 import gym_atena.global_env_prop as gep
 
 
-
 training_dir_path = None
 
 
 class TrainingActionsAnalyzer(object):
-    #   ____ ___  _   _ ____ _____ ____  _   _  ____ _____ ___  ____
-    #  / ___/ _ \| \ | / ___|_   _|  _ \| | | |/ ___|_   _/ _ \|  _ \
-    # | |  | | | |  \| \___ \ | | | |_) | | | | |     | || | | | |_) |
-    # | |__| |_| | |\  |___) || | |  _ <| |_| | |___  | || |_| |  _ <
-    #  \____\___/|_| \_|____/ |_| |_| \_\\___/ \____| |_| \___/|_| \_\
+
 
     def __init__(self, training_dir_path=training_dir_path):
         with open(os.path.join(training_dir_path, 'actions_cntr.pickle'), mode='rb') as handle:
             self.actions_cntr = pickle.load(handle)
 
-        # Update configuration based on schema
+
         config_file_path = os.path.join(training_dir_path, "args.txt")
         with open(config_file_path, "r") as config_file:
             config_line = config_file.readline()
@@ -69,7 +64,7 @@ class TrainingActionsAnalyzer(object):
             if action_type_string == 'back':
                 back_actions_count = count
             elif action_type_string == 'filter':
-                # change this if adding more filter operators!
+
                 parameters = list(parameters)
                 parameters[1] = (parameters[1] + 1) * 3 - 1
                 parameters = tuple(parameters)
@@ -107,27 +102,13 @@ class TrainingActionsAnalyzer(object):
 
     @lru_cache(maxsize=3)
     def get_percentage_of_action_type(self, action_type):
-        """
 
-        Args:
-            action_type (str): 'back', 'filter' or 'group'
-
-        Returns:
-
-        """
 
         return self.get_counts_of_action_type(action_type) / self.total_num_of_actions
 
     @lru_cache(maxsize=2)
     def get_actions_of_type_by_column_cntr(self, action_type):
-        """
 
-        Args:
-            action_type: 'filter' or 'group'
-
-        Returns:
-
-        """
         cntr = self.group_actions if action_type == 'group' else self.filter_actions
         map_idx_to_column = gep.global_env_prop.env_dataset_prop.GROUP_COLS if action_type == 'group' else gep.global_env_prop.env_dataset_prop.FILTER_COLS
 
@@ -160,14 +141,7 @@ class TrainingActionsAnalyzer(object):
 
     @lru_cache(maxsize=2)
     def get_actions_of_type_by_column_percentage(self, action_type):
-        """
 
-        Args:
-            action_type: 'filter' or 'group'
-
-        Returns:
-
-        """
         result = dict()
         actions_by_column_cntr = self.get_actions_of_type_by_column_cntr(action_type)
         for key, val in actions_by_column_cntr.items():
@@ -193,14 +167,7 @@ class TrainingActionsAnalyzer(object):
 
     @staticmethod
     def show_values_on_bars(ax):
-        """
-        See https://stackoverflow.com/questions/43214978/seaborn-barplot-displaying-values
-        Args:
-            ax:
 
-        Returns:
-
-        """
         for p in ax.patches:
             _x = p.get_x() + p.get_width() / 2
             _y = p.get_y() + p.get_height()
@@ -216,13 +183,13 @@ class TrainingActionsAnalyzer(object):
         ax = sns.barplot(x=names, y=values)
         TrainingActionsAnalyzer.show_values_on_bars(ax)
 
-        # Title
+
         plt.title(title, {'fontsize': 14})
 
-        # change ticks font sizes
+
         plt.tick_params(labelsize=12.5)
 
-        # Show
+
         plt.show()
 
     def plot_counts_per_action_type(self):
@@ -234,14 +201,7 @@ class TrainingActionsAnalyzer(object):
                            title=r'Number of actions per Action Type')
 
     def plot_counts_actions_of_type_per_column(self, action_type):
-        """
-        Plot number of occurrences of each column for the given action_type
-        Args:
-            action_type: 'filter' or 'group'
 
-        Returns:
-
-        """
         actions_by_column_cntr = self.get_actions_of_type_by_column_cntr(action_type=action_type)
         self.plot_bar_plot(names=gep.global_env_prop.env_dataset_prop.KEYS,
                            values=[actions_by_column_cntr[key] for key in
@@ -280,4 +240,3 @@ if __name__ == '__main__':
 
     for column in gep.global_env_prop.env_dataset_prop.FILTER_COLS:
         analyzer.plot_counts_filter_per_operator_for_column(column)
-

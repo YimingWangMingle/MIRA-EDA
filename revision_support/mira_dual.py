@@ -1,4 +1,3 @@
-"""Dual actor action adapter for the shared MIRA representation core."""
 import numpy as np
 from .mira_core import MIRACore
 

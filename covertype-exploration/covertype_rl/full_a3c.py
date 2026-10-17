@@ -181,14 +181,9 @@ class Critic:
 
 
 class CovertypeDualActorEnvironment:
-    """Fixed-set Covertype environment exposed as a Galaxy-style dual actor task.
 
-    Set actor: chooses one candidate next set slot.
-    Operation actor: chooses the concrete graph action that reaches that slot.
-    """
 
-    def __init__(self, universe, actions, episode_steps=250, seed=0, candidate_slots=10, mira_descriptors=False):
-        self.mira_descriptors = bool(mira_descriptors)
+    def __init__(self, universe, actions, episode_steps=250, seed=0, candidate_slots=10):
         self.universe = universe
         self.actions = actions
         self.episode_steps = int(episode_steps)
@@ -197,15 +192,10 @@ class CovertypeDualActorEnvironment:
         self.set_state_dim = self.candidate_slots * self.universe.state_dim
         self.operation_state_dim = self.set_state_dim + self.universe.state_dim
         self.region_state_dim = self.universe.state_dim
-        if self.mira_descriptors:
-            self.region_state_dim += 2
-            self.set_state_dim = (self.candidate_slots+1)*self.region_state_dim + 1
-            self.operation_state_dim = self.set_state_dim + self.region_state_dim
-            # Cached constraints are the tail of each legacy region descriptor.
-            n_constraints = int(self.universe.constraints.shape[1])
-            offset = self.candidate_slots*self.region_state_dim
-            self.statistic_indices = [offset+i for i in range(self.universe.state_dim-n_constraints)]
-            self.statistic_indices += [offset+self.universe.state_dim, offset+self.universe.state_dim+1]
+        n_constraints = int(self.universe.constraints.shape[1])
+        self.statistic_indices = [slot * self.region_state_dim + index
+            for slot in range(self.candidate_slots)
+            for index in range(self.region_state_dim - n_constraints)]
         self.set_action_dim = self.candidate_slots
         self.operation_action_dim = self.universe.action_dim
         self.step_count = 0
@@ -231,21 +221,15 @@ class CovertypeDualActorEnvironment:
         return _candidate_groups(self.universe, self.actions, set_id)
 
     def _region_state(self, set_id):
-        if self.mira_descriptors:
-            from revision_support.mira_descriptors import covertype_region
-            return covertype_region(self.universe, set_id)
         return self.universe.state_for_set(set_id)
 
-    def _build_set_state(self, candidate_set_ids, current_set_id=None):
+    def _build_set_state(self, candidate_set_ids):
         pieces = []
         for set_id in candidate_set_ids:
             if int(set_id) >= 0:
                 pieces.append(self._region_state(int(set_id)))
             else:
                 pieces.append(np.zeros(self.region_state_dim, dtype=np.float32))
-        if self.mira_descriptors:
-            current_set_id = self.base_env.current_set_id if current_set_id is None else current_set_id
-            pieces += [self._region_state(int(current_set_id)), [self.step_count / max(self.episode_steps, 1)]]
         return np.concatenate(pieces).astype(np.float32)
 
     def _apply_candidates(self, candidate_set_ids, grouped):
@@ -276,103 +260,6 @@ class CovertypeDualActorEnvironment:
         size = self.base_env.previous_set_size if reference_set_size is None else reference_set_size
         return _select_candidate_set_ids(self.universe, all_candidate_set_ids, family_by_set,
                                          size, self.candidate_slots)
-
-    def _default_context_state_for_set(self, set_id):
-        set_id = int(set_id)
-        all_candidate_set_ids, _grouped, family_by_set = self._candidate_groups_for_set(set_id)
-        candidate_set_ids = self._select_candidate_set_ids(
-            all_candidate_set_ids,
-            family_by_set,
-            reference_set_size=self.universe.size_for_set(set_id),
-        )
-        while len(candidate_set_ids) < self.candidate_slots:
-            candidate_set_ids.append(-1)
-        return self._build_set_state(candidate_set_ids[: self.candidate_slots], current_set_id=set_id)
-
-    def rerank_candidates_by_mira(self, mira, z, family_keep=4):
-        """Retrieve legal next sets by alignment with the current MIRA direction.
-
-        This does not use target membership or reward. It only asks whether the
-        latent transition from the current candidate context to each legal
-        neighbor context follows the episode-level MIRA direction z. The graph
-        is shared with the baselines; MIRA supplies its own shortlist.
-        """
-        if mira is None or z is None:
-            return self.set_state
-
-        current_set_id = int(self.base_env.current_set_id)
-        all_candidate_set_ids, grouped, family_by_set = self._candidate_groups_for_set(current_set_id)
-        if not all_candidate_set_ids:
-            return self.set_state
-
-        z = np.asarray(z, dtype=np.float32).reshape(-1)
-        z_norm = float(np.linalg.norm(z))
-        if z_norm <= 1e-8:
-            return self.set_state
-        z = (z / z_norm).astype(np.float32)
-
-        current_context = np.asarray(self._default_context_state_for_set(current_set_id), dtype=np.float32).reshape(1, -1)
-        next_contexts = np.asarray(
-            [self._default_context_state_for_set(set_id) for set_id in all_candidate_set_ids],
-            dtype=np.float32,
-        )
-        encoder_inputs = np.concatenate([current_context, next_contexts], axis=0)
-        phi = mira.reward_embed(encoder_inputs)
-
-        phi_current = np.asarray(phi[0], dtype=np.float32)
-        phi_next = np.asarray(phi[1:], dtype=np.float32)
-        deltas = phi_next - phi_current.reshape(1, -1)
-        norms = np.linalg.norm(deltas, axis=1)
-        valid = norms > 1e-8
-        scores = np.full(len(all_candidate_set_ids), -np.inf, dtype=np.float64)
-        if np.any(valid):
-            scores[valid] = np.dot(deltas[valid], z)
-        scores[~valid] = 0.
-
-        score_by_set = {
-            int(set_id): float(score)
-            for set_id, score in zip(all_candidate_set_ids, scores)
-        }
-        selected = []
-        selected_set = set()
-
-        def add(set_id):
-            set_id = int(set_id)
-            if set_id in selected_set:
-                return False
-            if len(selected) >= self.candidate_slots:
-                return False
-            selected.append(set_id)
-            selected_set.add(set_id)
-            return True
-
-        family_keep = max(0, int(family_keep))
-        if family_keep > 0:
-            for family in ("by_facet", "by_superset", "by_neighbors", "by_distribution")[:family_keep]:
-                family_candidates = [
-                    int(set_id)
-                    for set_id in all_candidate_set_ids
-                    if family in family_by_set.get(int(set_id), set())
-                ]
-                if family_candidates:
-                    family_candidates.sort(
-                        key=lambda set_id: (score_by_set.get(int(set_id), -np.inf), -int(set_id)),
-                        reverse=True,
-                    )
-                    add(family_candidates[0])
-
-        ranked = sorted(
-            [int(set_id) for set_id in all_candidate_set_ids if int(set_id) not in selected_set],
-            key=lambda set_id: (score_by_set.get(int(set_id), -np.inf), -int(set_id)),
-            reverse=True,
-        )
-        for set_id in ranked:
-            if not add(set_id):
-                break
-
-        selected.sort(key=lambda set_id: (score_by_set.get(int(set_id), -np.inf), -int(set_id)), reverse=True)
-        self._apply_candidates(selected, grouped)
-        return self.set_state
 
 
     def fix_possible_set_action_probs(self, probs):
@@ -556,7 +443,7 @@ class ParameterServer:
                     "extrinsic_reward",
                     "mean_step_extrinsic",
                     "target_hits",
-                    "interestingness",
+                    *([] if self.is_mira else ["interestingness"]),
                     "familiarity",
                     "counter_curiosity",
                     "coherency",
@@ -589,7 +476,7 @@ class ParameterServer:
                     "step",
                     "set_id",
                     "step_extrinsic_reward",
-                    "step_interestingness",
+                    *([] if self.is_mira else ["step_interestingness"]),
                     "operator",
                     "parameter",
                     "input_set_id",
@@ -637,7 +524,7 @@ class ParameterServer:
 
 
     def update_and_sample_mira_batch(self, states, set_actions, operation_actions, task_rewards, next_states, episode):
-        # task_rewards are already isolated: noExt contains interestingness only.
+
         actions = np.column_stack([np.asarray(set_actions).reshape(-1), np.asarray(operation_actions).reshape(-1)])
         from revision_support.mira_task import replay_task_reward
         return self.mira_learner.submit(states, actions, replay_task_reward(task_rewards, self.args), next_states)
@@ -646,9 +533,6 @@ class ParameterServer:
         self.mira_learner.check()
         with self.mira_learner.lock:
             self.global_mira.save_models(directory)
-
-
-
 
 
     def record_pca_collection(self, records):
@@ -673,7 +557,7 @@ class ParameterServer:
                     float(totals["extrinsic_reward"]),
                     float(totals["extrinsic_reward"]) / max(int(self.args.steps), 1),
                     int(totals["target_hits"]),
-                    float(totals["interestingness"]),
+                    *([] if self.is_mira else [float(totals["interestingness"])]),
                     float(totals["familiarity"]),
                     float(totals["counter_curiosity"]),
                     float(totals["coherency"]),
@@ -708,7 +592,7 @@ class ParameterServer:
                         int(row.get("step", -1)),
                         int(row.get("set_id", -1)),
                         float(row.get("step_extrinsic_reward", 0.0)),
-                        float(row.get("step_interestingness", 0.0)),
+                        *([] if self.is_mira else [float(row.get("step_interestingness", 0.0))]),
                         row.get("operator", ""),
                         row.get("parameter", ""),
                         int(row.get("input_set_id", -1)),
@@ -811,7 +695,6 @@ class WorkerAgent:
             episode_steps=self.args.steps,
             seed=int(self.args.seed) * 1000 + self.agent_id,
             candidate_slots=self.args.candidate_slots,
-            mira_descriptors=self.args.baseline in MIRA_BASELINES,
         )
         self.is_mira = self.args.baseline in MIRA_BASELINES
         self.base_set_state_dim = self.env.set_state_dim
@@ -909,17 +792,6 @@ class WorkerAgent:
             str(sample.get("z_source", "random")),
         )
 
-    def refresh_mira_candidates(self, mira_z):
-        if not self.is_mira or self.mira is None:
-            return
-        if bool(getattr(self.args, "disable_mira_candidate_rerank", False)):
-            return
-        self.env.rerank_candidates_by_mira(
-            self.mira,
-            mira_z,
-            family_keep=getattr(self.args, "mira_candidate_family_keep", 4),
-        )
-
 
     def sample_action(self, probs, action_dim, fallback_action=0):
         probs = np.asarray(probs, dtype=np.float64)
@@ -968,7 +840,7 @@ class WorkerAgent:
         mira_next_state_batch = []
         mira_set_action_batch = []
         mira_operation_action_batch = []
-        mira_reward_components_batch = []
+        mira_task_reward_batch = []
         episode_set_op_counters = {}
         episode_history_phi = []
         if self.is_mira:
@@ -986,7 +858,6 @@ class WorkerAgent:
         operation_action_steps = [np.zeros(self.operation_state_dim, dtype=np.float32) for _ in range(self.steps)]
 
         set_state = self.env.reset()
-        self.refresh_mira_candidates(mira_z)
         set_state = self.env.set_state
         set_action_steps.pop(0)
         set_action_steps.append(self.augment_set_state(set_state, mira_z))
@@ -1019,7 +890,6 @@ class WorkerAgent:
             )
 
             next_set_state, r_ext, r_int, done, set_op_pair, metrics = self.env.step(set_action, operation_action)
-            self.refresh_mira_candidates(mira_z)
             next_set_state = self.env.set_state
             r_ext = float(r_ext)
             r_int = float(r_int)
@@ -1045,10 +915,7 @@ class WorkerAgent:
             )
             exploration_reward = 0.0
             if self.is_mira:
-                exploration_reward = (
-                    float(self.args.w_int) * float(r_int)
-                    + float(self.args.w_mira) * float(mira_bonus)
-                )
+                exploration_reward = float(self.args.w_mira) * float(mira_bonus)
             step_reward = _training_reward(self.args.baseline, r_ext, r_int,
                                             counter_curiosity, r_coh, r_div, mira_bonus, self.args)
             next_set_action_steps = list(set_action_steps)
@@ -1065,8 +932,8 @@ class WorkerAgent:
                 mira_next_state_batch.append(np.asarray(next_set_state, dtype=np.float32).reshape((1, self.base_set_state_dim)))
                 mira_set_action_batch.append(np.reshape(set_action, (1, 1)))
                 mira_operation_action_batch.append(np.reshape(operation_action, (1, 1)))
-                metric_reward = [0.0 if self.args.baseline == "mira_no_ext" else r_ext, r_int]
-                mira_reward_components_batch.append(np.reshape(metric_reward, (1, 2)))
+                metric_reward = 0.0 if self.args.baseline == "mira_no_ext" else r_ext
+                mira_task_reward_batch.append(np.reshape(metric_reward, (1, 1)))
 
             _add_totals(
                 totals,
@@ -1108,7 +975,7 @@ class WorkerAgent:
                 if self.mira is not None and mira_state_batch:
                     mira_stats = ray.get(self.ps.update_and_sample_mira_batch.remote(
                         self.list_to_batch(mira_state_batch), self.list_to_batch(mira_set_action_batch),
-                        self.list_to_batch(mira_operation_action_batch), self.list_to_batch(mira_reward_components_batch),
+                        self.list_to_batch(mira_operation_action_batch), self.list_to_batch(mira_task_reward_batch),
                         self.list_to_batch(mira_next_state_batch), episode))
                     totals['mira_pair_source'] = 'async_replay'
                     totals['mira_replay_size'] = mira_stats['replay_size']
@@ -1138,7 +1005,7 @@ class WorkerAgent:
                 mira_next_state_batch = []
                 mira_set_action_batch = []
                 mira_operation_action_batch = []
-                mira_reward_components_batch = []
+                mira_task_reward_batch = []
 
             set_state = next_set_state
             set_action_steps = next_set_action_steps
@@ -1210,8 +1077,6 @@ def build_parser():
     parser.add_argument("--critic_dense_units", default="512,256,128")
     parser.add_argument("--critic_lstm_units", type=int, default=128)
     parser.add_argument("--candidate_slots", type=int, default=10)
-    parser.add_argument("--disable_mira_candidate_rerank", action="store_true")
-    parser.add_argument("--mira_candidate_family_keep", type=int, default=4)
     parser.add_argument("--counter_curiosity_ratio", type=float, default=0.25)
     parser.add_argument("--alpha", type=float, default=0.5)
     parser.add_argument("--w_ext", type=float, default=None)
@@ -1303,8 +1168,8 @@ def run(args):
     output_dir.mkdir(parents=True, exist_ok=True)
     args.output_dir = str(output_dir)
     if ablation_label(args):
-        # Reserve atomically before PCA writes its artifacts. Only this driver
-        # can authorize the parameter server to open the same run directory.
+
+
         prepared = output_dir / (args.output_prefix or args.name)
         prepared.mkdir(parents=True, exist_ok=False)
         args._prepared_run_dir = str(prepared.resolve())
@@ -1320,7 +1185,6 @@ def run(args):
         episode_steps=args.steps,
         seed=args.seed,
         candidate_slots=args.candidate_slots,
-        mira_descriptors=args.baseline in MIRA_BASELINES,
     )
     dummy_env.reset()
     args.mira_statistic_indices = getattr(dummy_env, 'statistic_indices', [])
@@ -1483,12 +1347,9 @@ def _training_reward(
             + float(args.w_div) * float(r_div)
         )
     if baseline == "mira":
-        return float(args.w_ext) * float(r_ext) + float(args.alpha) * (
-            float(args.w_int) * float(r_int) + float(args.w_mira) * float(mira_bonus))
+        return float(args.w_ext) * float(r_ext) + float(args.alpha) * float(args.w_mira) * float(mira_bonus)
     if baseline == "mira_no_ext":
-        return float(args.alpha) * (
-            float(args.w_int) * float(r_int) + float(args.w_mira) * float(mira_bonus)
-        )
+        return float(args.alpha) * float(args.w_mira) * float(mira_bonus)
     raise ValueError(f"Unsupported baseline: {baseline}")
 
 

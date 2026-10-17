@@ -1,11 +1,3 @@
-"""RND with a fixed random MLP target and an Adam-trained MLP predictor.
-
-Reward is mean squared feature error BEFORE updating the predictor. Inputs
-use a fixed signed log1p transform clipped to [-5, 5], divided by 5; no
-target labels, rewards, learned representation, or running statistics enter
-this transform. Both networks are tanh MLPs with linear feature outputs.
-"""
-
 from pathlib import Path
 
 import numpy as np

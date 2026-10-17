@@ -1,4 +1,3 @@
-"""Bounded replay and an independent representation-training thread."""
 import queue
 import threading
 import json

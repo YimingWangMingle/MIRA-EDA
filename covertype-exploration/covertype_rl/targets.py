@@ -48,13 +48,7 @@ def load_target_items(path):
 
 
 def generate_sparse_targets(data, seed=1, target_size=1000, regions=8):
-    """Generate sparse, clustered target rows from predicate-addressable regions.
 
-    The target set should behave like the galaxy task: targets are not arbitrary
-    independent rows, but dense pockets that can be reached by composing set
-    operators. Each region is defined by constraints the RL action space can
-    express, then populated with rows nearest to a regional anchor.
-    """
     rng = np.random.default_rng(seed)
     selected = set()
     metadata = []

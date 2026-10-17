@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from builtins import *  # NOQA
+from builtins import *
 
 from future import standard_library
 
@@ -47,18 +47,18 @@ class TRPOModel(ClippedModel):
             print("""\
     This example only supports gym.spaces.Box observation spaces. To apply it to
     other observation spaces, use a custom phi function that convert an observation
-    to numpy.ndarray of numpy.float32.""")  # NOQA
+    to numpy.ndarray of numpy.float32.""")
             return
 
-        # Parameterize log std
+
         def var_func(x): return F.exp(x) ** 2
 
-        # Normalize observations based on their empirical mean and variance
+
         obs_normalizer = chainerrl.links.EmpiricalNormalization(
             obs_space.low.size)
 
         assert isinstance(action_space, gym.spaces.Box)
-        # Use a Gaussian policy for continuous action spaces
+
         if use_clipped_gaussian:
             policy = \
                 ClippedGaussianPolicy(
@@ -70,7 +70,7 @@ class TRPOModel(ClippedModel):
                     nonlinearity=F.tanh,
                     var_type='diagonal',
                     var_func=var_func,
-                    var_param_init=0,  # log std = 0 => std = 1
+                    var_param_init=0,
                     min_action=action_space.low.astype(np.float32),
                     max_action=action_space.high.astype(np.float32),
                 )
@@ -85,10 +85,10 @@ class TRPOModel(ClippedModel):
                     nonlinearity=F.tanh,
                     var_type='diagonal',
                     var_func=var_func,
-                    var_param_init=0,  # log std = 0 => std = 1
+                    var_param_init=0,
                 )
 
-        # Use a value function to reduce variance
+
         vf = chainerrl.v_functions.FCVFunction(
             obs_space.low.size,
             n_hidden_channels=n_hidden_channels,
@@ -103,12 +103,11 @@ class TRPOModel(ClippedModel):
             vf.to_gpu(gpu)
             obs_normalizer.to_gpu(gpu)
 
-        # TRPO's policy is optimized via CG and line search, so it doesn't require
-        # a chainer.Optimizer. Only the value function needs it.
+
         vf_opt = chainer.optimizers.Adam()
         vf_opt.setup(vf)
 
-        # Draw the computational graph and save it in the output directory.
+
         fake_obs = chainer.Variable(
             policy.xp.zeros_like(obs_space.low, dtype=np.float32)[None],
             name='observation')
@@ -117,7 +116,7 @@ class TRPOModel(ClippedModel):
         chainerrl.misc.draw_computational_graph(
             [vf(fake_obs)], os.path.join(outdir, 'vf'))
 
-        # Hyperparameters in http://arxiv.org/abs/1709.06560
+
         agent = chainerrl.agents.TRPO(
             policy=policy,
             vf=vf,

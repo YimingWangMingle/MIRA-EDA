@@ -1,5 +1,3 @@
-"""Run target-blind Greedy EDA on the fixed Covertype graph."""
-
 import argparse
 import csv
 import json
@@ -163,12 +161,6 @@ def visible_candidates(env, interestingness_by_slot):
 
 def execute_selected_step(env, action_id):
     return env.step(int(action_id))
-
-
-
-
-
-
 
 
 def episode_ranges(total_episodes, workers):

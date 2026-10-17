@@ -9,7 +9,6 @@ import operator
 from scipy.stats import entropy
 
 from Utilities.Collections.Counter_Without_Nans import CounterWithoutNanKeys
-#import Utilities.Configuration.config as cfg
 
 
 FilteringTuple = namedtuple('FilteringTuple', ["field", "term", "condition"])
@@ -27,11 +26,7 @@ class GetItemByStr(tuple):
 
 
 class AggAttrTuple(namedtuple('AggAttrTuple', ["column", "grouped_or_aggregated_state"]), GetItemByStr):
-    """
 
-    e.g.
-    ('packet_number', 0.0)
-    """
     __slots__ = ()
 
     def __getitem__(self, attr):
@@ -40,14 +35,7 @@ class AggAttrTuple(namedtuple('AggAttrTuple', ["column", "grouped_or_aggregated_
 
 class GranLayerTuple(namedtuple('GranLayerTuple', ["group_attrs", "agg_attrs",
                                                    "inverse_ngroups", "site_std", "inverse_size_mean"]), GetItemByStr):
-    """
 
-    e.g.
-    {'group_attrs':
-         ['highest_layer', 'tcp_srcport', 'tcp_dstport', 'tcp_stream', 'eth_dst', 'packet_number'],
-     'agg_attrs': {'packet_number': 0.0}, 'inverse_ngroups': 1.0, 'site_std': 0.0, 'inverse_size_mean':
-         0.16666666666666666}
-    """
     __slots__ = ()
 
     def __getitem__(self, attr):
@@ -55,57 +43,15 @@ class GranLayerTuple(namedtuple('GranLayerTuple', ["group_attrs", "agg_attrs",
 
 
 class ColumnDataLayerTuple(namedtuple('ColumnDataLayerTuple', ["unique", "nulls", "entropy"]), GetItemByStr):
-    """
 
-    e.g.
-    {'unique': 1.0, 'nulls': 0.0, 'entropy': 1.0}
-    """
     __slots__ = ()
 
     def __getitem__(self, attr):
         return GetItemByStr.__getitem__(self, attr)
 
 
-# class DataLayerTuple(namedtuple('DataLayerTuple', KEYS), GetItemByStr):
-#     """
-#     e.g.
-#     {'packet_number': {'unique': 1.0, 'nulls': 0.0, 'entropy': 1.0}, 'eth_dst':
-#     {'unique': 0.125, 'nulls': 0.0, 'entropy': 0.0}, 'eth_src': {'unique': 0.125, 'nulls':
-#     0.0, 'entropy': 0.0}, 'highest_layer': {'unique': 0.25, 'nulls': 0.0, 'entropy':
-#     0.2704260414863776}, 'info_line': {'unique': 0.75, 'nulls': 0.0, 'entropy': 0.8333333333333334},
-#     'ip_dst': {'unique': 0.125, 'nulls': 0.0, 'entropy': 0.0}, 'ip_src': {'unique': 0.125,
-#     'nulls': 0.0, 'entropy': 0.0}, 'length': {'unique': 0.25, 'nulls': 0.0, 'entropy':
-#     0.2704260414863776}, 'sniff_timestamp': {'unique': 0.5, 'nulls': 0.0, 'entropy':
-#     0.5833333333333334}, 'tcp_dstport': {'unique': 0.3333333333333333, 'nulls': 0.25,
-#     'entropy': 0.3868528072345416}, 'tcp_srcport': {'unique': 0.3333333333333333, 'nulls':
-#     0.25, 'entropy': 0.3868528072345416}, 'tcp_stream': {'unique': 0.3333333333333333,
-#     'nulls': 0.25, 'entropy': 0.3868528072345416}}
-#     """
-#     __slots__ = ()
-#
-#     def __getitem__(self, attr):
-#         return GetItemByStr.__getitem__(self, attr)
-
-
 class DisplayTuple(namedtuple('DisplayTuple', ["data_layer", "granularity_layer"]), GetItemByStr):
-    """
-    e.g.
 
-    {'data_layer': {'packet_number': {'unique': 1.0, 'nulls': 0.0, 'entropy': 1.0}, 'eth_dst':
-    {'unique': 0.125, 'nulls': 0.0, 'entropy': 0.0}, 'eth_src': {'unique': 0.125, 'nulls':
-    0.0, 'entropy': 0.0}, 'highest_layer': {'unique': 0.25, 'nulls': 0.0, 'entropy':
-    0.2704260414863776}, 'info_line': {'unique': 0.75, 'nulls': 0.0, 'entropy': 0.8333333333333334},
-    'ip_dst': {'unique': 0.125, 'nulls': 0.0, 'entropy': 0.0}, 'ip_src': {'unique': 0.125,
-    'nulls': 0.0, 'entropy': 0.0}, 'length': {'unique': 0.25, 'nulls': 0.0, 'entropy':
-    0.2704260414863776}, 'sniff_timestamp': {'unique': 0.5, 'nulls': 0.0, 'entropy':
-    0.5833333333333334}, 'tcp_dstport': {'unique': 0.3333333333333333, 'nulls': 0.25,
-    'entropy': 0.3868528072345416}, 'tcp_srcport': {'unique': 0.3333333333333333, 'nulls':
-    0.25, 'entropy': 0.3868528072345416}, 'tcp_stream': {'unique': 0.3333333333333333,
-    'nulls': 0.25, 'entropy': 0.3868528072345416}}, 'granularity_layer': {'group_attrs':
-    ['highest_layer', 'tcp_srcport', 'tcp_dstport', 'tcp_stream', 'eth_dst', 'packet_number'],
-    'agg_attrs': {'packet_number': 0.0}, 'inverse_ngroups': 1.0, 'site_std': 0.0, 'inverse_size_mean':
-    0.16666666666666666}}
-    """
     __slots__ = ()
 
     def __getitem__(self, attr):
@@ -113,9 +59,7 @@ class DisplayTuple(namedtuple('DisplayTuple', ["data_layer", "granularity_layer"
 
 
 class EnvStateTuple(namedtuple('EnvStateTuple', ["filtering", "grouping", "aggregations"]), GetItemByStr):
-    """
-    see https://stackoverflow.com/questions/44320382/subclassing-python-namedtuple
-    """
+
     __slots__ = ()
 
     def reset_filtering(self):
@@ -177,8 +121,6 @@ def hack_min(pd_series):
 def hack_max(pd_series):
     return np.max(pd_series.dropna())
 
-# CONSTANTS
-
 
 KL_DIV_EPSILON = 0.05
 
@@ -196,7 +138,6 @@ OPERATOR_TYPE_LOOKUP = {
         }
 
 
-#we have 9 filters operators (3 more for strings)
 INT_OPERATOR_MAP_ATENA = {
     0: operator.eq,
     1: operator.gt,
@@ -204,12 +145,12 @@ INT_OPERATOR_MAP_ATENA = {
     3: operator.lt,
     4: operator.le,
     5: operator.ne,
-    6: None,  # string contains
-    7: None,  # string startswith
-    8: None,  # string endswith
+    6: None,
+    7: None,
+    8: None,
 }
 
-# redefinition of the previous without operators that are not relevant for our data
+
 INT_OPERATOR_MAP_ATENA = {
     0: operator.eq,
     1: operator.eq,
@@ -217,9 +158,9 @@ INT_OPERATOR_MAP_ATENA = {
     3: operator.ne,
     4: operator.ne,
     5: operator.ne,
-    6: None, # string contains
-    7: None, # string contains
-    8: None, # string contains
+    6: None,
+    7: None,
+    8: None,
 }
 
 INT_OPERATOR_MAP_ATENA_STR = {
@@ -253,8 +194,6 @@ PRETTY_STR_MAP_ATENA_INT_OPERATOR = {
 }
 
 
-
-
 INT_OPERATOR_MAP_REACT = {
     8: operator.eq,
     32: operator.gt,
@@ -280,8 +219,8 @@ INT_OPERATOR_MAP_REACT_TO_ATENA = {
 AGG_MAP_ATENA = {
     0: np.sum,
     1: len ,
-    2: hack_min,#lambda x:np.nanmin(x.dropna()),
-    3: hack_max,#lambda x:np.nanmax(x.dropna()),
+    2: hack_min,
+    3: hack_max,
     4: np.mean
 }
 
@@ -296,8 +235,8 @@ AGG_MAP_ATENA_STR = {
 INVERSE_AGG_MAP_ATENA = {
     'sum': 0,
     'count': 1,
-    'min': 2,  # lambda x:np.nanmin(x.dropna()),
-    'max': 3,  # lambda x:np.nanmax(x.dropna()),
+    'min': 2,
+    'max': 3,
     'avg': 4
 
 }
@@ -310,8 +249,8 @@ INVERSE_AGG_MAP_ATENA = {
 AGG_MAP_react = {
     'sum': np.sum,
     'count': len,
-    'min': hack_min,#lambda x:np.nanmin(x.dropna()),
-    'max': hack_max,#lambda x:np.nanmax(x.dropna()),
+    'min': hack_min,
+    'max': hack_max,
     'avg': np.mean
 }
 
@@ -326,14 +265,7 @@ class ActionVectorEntry(Enum):
 
 
 def lst_of_actions_to_tuple(actions_lst):
-    """
-    Converts the given list of actions to a tuple (to enable hashing)
-    Args:
-        actions_lst:
 
-    Returns:
-
-    """
     return tuple([tuple(action) for action in actions_lst])
 
 
@@ -347,11 +279,5 @@ def get_aggregate_attributes(state):
 
 @lru_cache(maxsize=500)
 def normalized_sigmoid_fkt(a, b, x):
-    """
-    Returns array of a horizontal mirrored normalized sigmoid function
-    output between 0 and 1
-    Function parameters a = center; b = width
-    To get a numerically stable implementation use from 'scipy.special import expit' as explained here
-    https://stackoverflow.com/questions/3985619/how-to-calculate-a-logistic-sigmoid-function-in-python
-    """
+
     return 1/(1+math.exp(b*(x-a)))

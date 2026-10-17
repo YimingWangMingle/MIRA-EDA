@@ -1,4 +1,3 @@
-"""Serialize CSV appends from parallel training workers."""
 from contextlib import contextmanager
 import os
 

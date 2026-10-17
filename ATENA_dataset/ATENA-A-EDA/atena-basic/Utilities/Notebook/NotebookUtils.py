@@ -26,13 +26,12 @@ from gym_atena.reactida.utils.utilities import Repository
 from train_agent_chainerrl import act_most_probable
 
 
-
 from IPython.display import HTML
 
 HumanStep = namedtuple('HumanStep', 'cur_obs action_vector next_obs')
 HumanStepInfo = namedtuple('HumanStepInfo', 'cur_state action_vector action_info next_state dataset_number')
 
-# environment name
+
 env_d = 'ATENAcont-v0'
 
 
@@ -275,32 +274,19 @@ def get_filtering_state_html_body(filtering_lst):
 
 
 def get_sessions_dfs_from_session_ids(repo, session_ids):
-    """
-    Return a tuple (solutions_df, solutions_ids) that contains respectively a DataFrame of all actions
-    and solution ids of all human sessions with the solution attribute set to True.
-    :type repo: Repository
-    :param repo:
-    :param session_ids_with_react:
-    :return:
-    """
-    # Filtering human sessions with session_id in session_ids_with_react
+
+
     solutions_df = repo.actions[repo.actions["session_id"].isin(session_ids)]
 
     return solutions_df
 
 
 def get_solution_sessions_dfs_and_id(repo):
-    """
-    Return a tuple (solutions_df, solutions_ids) that contains respectively a DataFrame of all actions
-    and solution ids of all human sessions with the solution attribute set to True.
-    :type repo: Repository
-    :param repo:
-    :return:
-    """
-    # Filtering human sessions with solution == True
+
+
     solutions_df = repo.actions[repo.actions["solution"] == True]
 
-    # Get sessions_id of each session for which solution == True
+
     solutions_ids = set(solutions_df["session_id"].values)
 
     return solutions_df, solutions_ids
@@ -316,35 +302,19 @@ def run_episode(agent=None,
                 most_probable=False,
                 verbose=True
                 ):
-    """
-    Runs a a single episode with the given actions_lst.
-    If no actions_lst is given, let the agent choose the actions.
-    If no agent is given, sample actions randomly.
 
-    :param agent:
-    :param dataset_number:
-    :type  env: ATENAEnvCont
-    :param env:
-    :param compressed:
-    :param filter_by_field:
-    :param continuous_filter_term:
-    :param actions_lst: A list of actions that will be made along the episode
-    :param most_probable: If true use most probable actions for agent
-    :param verbose
-    :return:
-    """
 
     if most_probable:
         assert agent
     info_hist = []
 
-    # Create env if needed
+
     if env is None:
         env = gym.make(env_d)
     env.render()
     env.reset()
 
-    # Set number of steps in episode
+
     num_of_steps = cfg.MAX_NUM_OF_STEPS
     if actions_lst is not None:
         num_of_steps = len(actions_lst)
@@ -354,18 +324,14 @@ def run_episode(agent=None,
     if isinstance(env, ATENAEnvCont):
         s = env.reset(dataset_number=dataset_number)
         env.max_steps = num_of_steps
-    # elif isinstance(env, gym.wrappers.Monitor):
-    #     s = env.env.env.reset(dataset_number)
-    #     env.env.env.max_steps = num_of_steps
-    # else:
-    #     s = env.env.reset(dataset_number=dataset_number)
+
 
     r_sum = 0
     for ep_t in range(num_of_steps):
         if actions_lst is not None:
             a = actions_lst[ep_t]
         elif not agent:
-            a = env.action_space.sample()  # randomly choose an action
+            a = env.action_space.sample()
         else:
             if most_probable:
                 a = act_most_probable(agent, s)
@@ -374,12 +340,12 @@ def run_episode(agent=None,
         if verbose:
             print(a)
         s_, r, done, info = env.step(a, compressed=compressed, filter_by_field=filter_by_field,
-                                     continuous_filter_term=continuous_filter_term)  # make step in environment
+                                     continuous_filter_term=continuous_filter_term)
         info_hist.append((info, r))
 
         if verbose:
             display(info["action"])
-        # display(info["raw_display"][1] if info["raw_display"][1] is not None else info["raw_display"][0])
+
         s = s_
         r_sum += r
         if done:
@@ -423,24 +389,7 @@ def run_episode_analyst_view(agent=None,
                 angular_grid=False,
                 verbose=True
                 ):
-    """
-    Runs a a single episode with the given actions_lst.
-    If no actions_lst is given, let the agent choose the actions.
-    If no agent is given, sample actions randomly.
-    Use an HTML based view for ease of use.
 
-    :param agent:
-    :param dataset_number:
-    :type  env: ATENAEnvCont
-    :param env:
-    :param compressed:
-    :param filter_by_field:
-    :param continuous_filter_term:
-    :param actions_lst: A list of actions that will be made along the episode
-    :param filter_terms_lst
-    :param verbose
-    :return:
-    """
 
     if filter_terms_lst is not None:
         assert len(filter_terms_lst) == len(actions_lst)
@@ -451,13 +400,13 @@ def run_episode_analyst_view(agent=None,
     run_id = uuid4()
     info_hist = []
 
-    # Create env if needed
+
     if env is None:
         env = gym.make(env_d)
     env.render()
     env.reset()
 
-    # Set number of steps in episode
+
     num_of_steps = cfg.MAX_NUM_OF_STEPS
     if actions_lst is not None:
         num_of_steps = len(actions_lst)
@@ -467,11 +416,7 @@ def run_episode_analyst_view(agent=None,
     if isinstance(env, ATENAEnvCont):
         s = env.reset(dataset_number=dataset_number)
         env.max_steps = num_of_steps
-    # elif isinstance(env, gym.wrappers.Monitor):
-    #     s = env.env.env.reset(dataset_number)
-    #     env.env.env.max_steps = num_of_steps
-    # else:
-    #     s = env.env.reset(dataset_number=dataset_number)
+
 
     r_sum = 0
     if verbose:
@@ -485,34 +430,34 @@ def run_episode_analyst_view(agent=None,
         if actions_lst is not None:
             a = actions_lst[ep_t]
         elif not agent:
-            a = env.action_space.sample()  # randomly choose an action
+            a = env.action_space.sample()
         else:
             a = agent.act(s)
 
         s_, r, done, info = env.step(a, compressed=compressed, filter_by_field=filter_by_field,
                                      continuous_filter_term=continuous_filter_term,
-                                     filter_term=None if filter_terms_lst is None else filter_terms_lst[ep_t])  # make step in environment
+                                     filter_term=None if filter_terms_lst is None else filter_terms_lst[ep_t])
 
         track_actions_lst.append(info['raw_action'])
 
         track_filter_terms_lst.append(info['filter_term'])
-      
+
         if verbose:
-            # display action
+
             display(get_new_action_html_obj(ep_t+1, run_id))
             display(get_action_html_obj(info["raw_action"], info["filter_term"]))
             display(get_prev_next_buttons_html_ob_for_display_num(ep_t+1, run_id))
-            
-            # display filtering state
+
+
             fitering_state = env.states_hisotry[-1].filtering
             filtering_state_html_obj = get_filtering_state_html_obj(fitering_state)
             if filtering_state_html_obj:
                 display(filtering_state_html_obj)
 
-            # display tree
+
             draw_nx_display_tree(track_actions_lst, dataset_number=dataset_number, filter_terms_lst=track_filter_terms_lst if filter_terms_lst is None else filter_terms_lst[:ep_t+1])
-            
-            # display result
+
+
             if ATENAUtils.OPERATOR_TYPE_LOOKUP[info["raw_action"][0]] != "back":
                 f, g = info["raw_display"]
                 if not angular_grid:
@@ -523,7 +468,7 @@ def run_episode_analyst_view(agent=None,
                     display(df_to_display)
                 else:
                     display(get_html_ui_grid(f, env.states_hisotry[-1].grouping))
-        # display(info["raw_display"][1] if info["raw_display"][1] is not None else info["raw_display"][0])
+
         s = s_
         r_sum += r
         if done:
@@ -532,14 +477,7 @@ def run_episode_analyst_view(agent=None,
 
 
 def info_hist_to_raw_actions_lst(info_hist):
-    """
-    A utility function that returns a list of all actions in the given `info_hist` object
-    Args:
-        info_hist:
 
-    Returns:
-
-    """
     actions_lst = []
     for info, _ in info_hist:
         info = deepcopy(info)
@@ -550,44 +488,17 @@ def info_hist_to_raw_actions_lst(info_hist):
 
 
 def get_most_probable_actions_lst_of_agent_for_dataset(agent, env, datasat_num):
-    """
-    Returns a sequence of actions (list) that have highest probability by according to the agent's policy.
-    Args:
-        agent:
-        env:
-        datasat_num:
 
-    Returns:
-
-    """
     return get_actions_lst_and_total_reward_of_agent_for_dataset(agent, env, datasat_num, most_probable=True)[0]
 
 
 def get_actions_lst_of_agent_for_dataset(agent, env, datasat_num):
-    """
-    Returns a list of actions for the given `env` and `dataset_number` by the given `agent`
-    Args:
-        agent:
-        env:
-        datasat_num:
 
-    Returns:
-
-    """
     return get_actions_lst_and_total_reward_of_agent_for_dataset(agent, env, datasat_num)[0]
 
 
 def get_actions_lst_and_total_reward_of_agent_for_dataset(agent, env, datasat_num, most_probable=False):
-    """
-    Returns a list of actions for the given `env` and `dataset_number` by the given `agent`
-    Args:
-        agent:
-        env:
-        datasat_num:
 
-    Returns:
-
-    """
     info_hist, r_sum = run_episode(agent=agent,
                                    env=env.env,
                                    dataset_number=datasat_num,
@@ -598,13 +509,7 @@ def get_actions_lst_and_total_reward_of_agent_for_dataset(agent, env, datasat_nu
 
 
 def simulate(info_hist, displays=False, verbose=True):
-    """
-    Details about the actions (reward etc.)
-    dispays=True will also show the displays (not only the actions)
-    """
-    #if write_to_markdown_file:
-    #    assert markdown_file_descript, ("Passing the argument write_to_markdown_file=True requires"
-    #                                    " also passing a markdown_file_descript")
+
 
     if verbose:
         for info, r in info_hist:
@@ -637,36 +542,23 @@ def simulate(info_hist, displays=False, verbose=True):
 
 
 def analyze_reward(info_hist, actions_lst, summary_reward_data, verbose=True):
-    """
-    Returns a DataFrame containing a detailed description of the reward given for each action
-    in info_hist
-    :param info_hist:
-    :param actions_lst:
-    :param summary_reward_data:
-    :param verbose:
-    :return:
-    """
 
-    # Creating a DataFrame that contains the following columns:
-    # action: the action type: `back`, `filter`, `group`
-    # action_info: a human readable description of the action
-    # column for each reward component that contains the reward from this component
-    # total_reward: The total reward in the step due to the various reward components
+
     actions_info = [info["action"] for info, r in info_hist]
     reward_infos_dict = defaultdict(list)
     reward_infos_dict["action"] = actions_lst
     [reward_infos_dict[key].append(val) for info, r in info_hist for key, val in info["reward_info"].items()]
     [reward_infos_dict["total_reward"].append(r) for info, r in info_hist]
     reward_infos_dict["action_info"] = actions_info
-    # [print(str(key) + " " + str(len(val))) for key, val in reward_infos_dict.items()]
+
     reward_df = DataFrame(reward_infos_dict)
 
-    # Calculating the average reward over the different steps including and excluding `back` actions
+
     rewards_list = [r for info, r in info_hist]
     rewards_list_no_back = [r for info, r in info_hist if info["action"] != "Back"]
     average_reward_per_action = np.mean(rewards_list)
 
-    # Add average rewards statistics to summary
+
     average_reward_per_non_back_action = np.mean(rewards_list_no_back)
     summary_reward_data['total_reward'].append(sum(rewards_list))
     summary_reward_data['avg_reward_per_action'].append(average_reward_per_action)
@@ -678,12 +570,7 @@ def analyze_reward(info_hist, actions_lst, summary_reward_data, verbose=True):
 
 
 def are_states_similar(state_dataset_number_pair1, state_dataset_number_pair2):
-    """
-    Return True if the two states represent the same DataFrame and False otherwise
-    :param state_dataset_number_pair1:
-    :param state_dataset_number_pair2:
-    :return:
-    """
+
     dataset_number1 = state_dataset_number_pair1[1]
     dataset_number2 = state_dataset_number_pair2[1]
     state1 = state_dataset_number_pair1[0]
@@ -691,14 +578,14 @@ def are_states_similar(state_dataset_number_pair1, state_dataset_number_pair2):
     state1['grouping'].sort()
     state2['grouping'].sort()
     if dataset_number1 != dataset_number2 or state1 != state2:
-        # if dataset_number1 != dataset_number2 or state1['filtering'] != state2['filtering']:
-        # if dataset_number1 != dataset_number2:
+
+
         return False
     return True
 
 
 def get_scroll_html_obj(html_txt):
-    #                 <div style="overflow-x:scroll; width:700px;">
+
     return f"""
       <div class="div2">
         {html_txt}
@@ -767,7 +654,7 @@ def get_html_ui_grid(fdf, grouping_state):
 
     ui_grid_grouping_state = UiGridGroupingState()
 
-    # get fdf in json format
+
     data_json = fdf_to_json(fdf)
     action_id = str(uuid4()).replace('-', '_')
     data_json_str = str(data_json).replace('nan', 'NaN')
@@ -1188,7 +1075,6 @@ def get_html_ui_grid(fdf, grouping_state):
       """
 
 
-
     end_html = """
       </body>
     </html>
@@ -1197,11 +1083,6 @@ def get_html_ui_grid(fdf, grouping_state):
     app_defined = True
     all_html = start_html + angular_scripts1 + data_json_str + angular_scripts2 + end_html
     return HTML(all_html)
-
-
-#####################################
-# Recommender System
-####################################
 
 
 class RecommenderAgentStepResult(object):
@@ -1253,11 +1134,11 @@ class RecommenderAgent(object):
             most_probable=False,
             verbose=True
     ):
-        # Create agent and set configuration accordingly
+
         self.agent = self._create_agent(model_dir_path)
 
         self.state = None
-        # Create env if needed
+
         if env is None:
             env = self._create_env(dataset_number)
         self.env = env
@@ -1267,15 +1148,15 @@ class RecommenderAgent(object):
         self.filter_by_field = filter_by_field
         self.verbose = verbose
 
-        self.last_recommendation = (None, None)  # (action, filter_term)
+        self.last_recommendation = (None, None)
 
     def _create_env(self, dataset_number):
-        # Create env if needed
+
         env = gym.make(env_d)
         env.render()
         env.reset()
 
-        # Set number of steps in episode
+
         num_of_steps = 1000
 
         assert isinstance(env, ATENAEnvCont)
@@ -1296,7 +1177,7 @@ class RecommenderAgent(object):
     def apply_custom_action(self, action_vec, filter_term=None):
         self.set_human_framework_config()
 
-        # make step in the environment
+
         self.state, reward, done, info = self.env.step(
             action_vec, compressed=False, filter_by_field=False,
             continuous_filter_term=False, filter_term=filter_term

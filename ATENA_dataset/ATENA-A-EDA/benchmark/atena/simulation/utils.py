@@ -35,4 +35,3 @@ def random_action_generator(dataset: Dataset):
         return GroupAction(grouped_column, aggregated_column, aggregation_function)
     else:
         raise NotImplementedError
-

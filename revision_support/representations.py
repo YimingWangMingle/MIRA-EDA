@@ -1,4 +1,3 @@
-"""Representation replacements shared by the three MIRA implementations."""
 import json
 from pathlib import Path
 import numpy as np
@@ -25,8 +24,8 @@ class RepresentationVariants:
             self.encoder.trainable = False
             self.target_encoder.trainable = False
         if variant == 'vae':
-            # Keep the original encoder as the posterior mean. The variance
-            # head and decoder are auxiliary training parameters, not policy inputs.
+
+
             self.vae_logvar = tf.keras.Sequential([Input((self.latent_dim,), dtype=tf.float32),
                 Dense(self.latent_dim, dtype=tf.float32)])
             self.vae_decoder = tf.keras.Sequential([Input((self.latent_dim,), dtype=tf.float32),
@@ -58,7 +57,7 @@ class RepresentationVariants:
         return metric_loss
 
     def representation_metadata(self):
-        # Preserve the original learned-mode synchronization payload.
+
         result = {} if self.encoder_variant == 'learned' else dict(encoder_variant=self.encoder_variant)
         if self.encoder_variant == 'vae':
             result.update(vae_logvar=self.vae_logvar.get_weights(), vae_decoder=self.vae_decoder.get_weights())

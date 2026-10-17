@@ -10,7 +10,7 @@ class StateEncoder:
     def __init__(self, pipeline: PipelineWithPrecalculatedSets, target_items=None, found_items_with_ratio=None, target_set_size=2000):
         self.pipeline = pipeline
 
-        # 原论文外部奖励参数
+
         self.target_ratio = 0.1
         self.target_max_reward = 100
         self.target_set_size = target_set_size
@@ -57,10 +57,7 @@ class StateEncoder:
         r_int_js = 0.0
         data = dataset.data
 
-        # 对齐原论文的外部奖励定义：
-        # 1) 命中依据用 galaxies.objID
-        # 2) 条件要求 get_reward and dataset.set_id is not None
-        # 3) reward_set_size_ratio 用原论文公式
+
         if get_reward and dataset.set_id is not None and not data.empty and len(self.target_items) > 0:
             dataset_obj_ids = set(map(int, data["galaxies.objID"].tolist()))
             target_items_int = set(map(int, self.target_items))
@@ -97,7 +94,7 @@ class StateEncoder:
                 )
                 self.found_items_with_ratio.update(ratio_item_dict)
 
-        # 保留优化版内部奖励（JS divergence）
+
         if parent_dataset is not None and not parent_dataset.data.empty and not data.empty:
             divergence_sum = 0.0
             valid_dims = 0
@@ -124,7 +121,7 @@ class StateEncoder:
                 compactness_weight = max(0.0, 1.0 - abs(ratio - 0.5) * 2.0)
                 r_int_js = float(avg_divergence * compactness_weight)
 
-        # 状态提取
+
         encoded_set.append(float(np.log10(len(data) + 1)))
         for dimension in self.pipeline.exploration_columns:
             predicate_item = next((x for x in dataset.predicate.components if x.attribute == dimension), None)

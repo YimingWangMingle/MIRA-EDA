@@ -1,5 +1,3 @@
-"""Read-only input contract for official Covertype Greedy experiments."""
-
 from __future__ import annotations
 
 import json
@@ -54,7 +52,7 @@ EXPECTED_METADATA = {
 
 
 def official_greedy_input(seed: int) -> OfficialGreedyInput:
-    """Return the immutable official input mapping for an experiment seed."""
+
     try:
         return OFFICIAL_GREEDY_INPUTS[int(seed)]
     except (KeyError, TypeError, ValueError) as exc:
@@ -69,7 +67,7 @@ def validate_official_greedy_preprocessing(
     preprocess_name: str,
     action_labels: Sequence[str],
 ) -> ValidatedGreedyPreprocessing:
-    """Validate and return an existing official universe without modifying it."""
+
     official = official_greedy_input(seed)
     if target_set != official.target_set:
         raise ValueError(

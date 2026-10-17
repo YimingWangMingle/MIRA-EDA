@@ -47,7 +47,6 @@ parser.add_argument('--target_samples_per_file', type=int, default=100)
 
 parser.add_argument('--alpha', type=float, default=0.5, help="Scaling factor for Exploration Reward")
 parser.add_argument('--w_ext', type=float, default=2.0, help="Weight for Extrinsic Reward")
-parser.add_argument('--w_int', type=float, default=0.2, help="Weight for Galaxy interestingness")
 parser.add_argument('--w_mira', type=float, default=1.0, help="Weight for MIRA directional reward")
 parser.add_argument('--mira_bonus_clip', type=float, default=1.0, help="Clip absolute MIRA directional reward")
 parser.add_argument('--mira_latent_dim', type=int, default=16)
@@ -209,7 +208,7 @@ class ParameterServer:
 
 
     def update_and_sample_mira_batch(self, states, set_actions, operation_actions, task_rewards, next_states, episode):
-        # task_rewards are already isolated: noExt contains interestingness only.
+
         actions = np.column_stack([np.asarray(set_actions).reshape(-1), np.asarray(operation_actions).reshape(-1)])
         from revision_support.mira_task import replay_task_reward
         return self.mira_learner.submit(states, actions, replay_task_reward(task_rewards, self.args), next_states)
@@ -218,8 +217,6 @@ class ParameterServer:
         self.mira_learner.check()
         with self.mira_learner.lock:
             self.global_mira.save_models(directory)
-
-
 
 
     def record_episode_metrics(self, ep_ext_score, episode_set_ids):
@@ -265,7 +262,6 @@ class ParameterServer:
                         'step',
                         'set_id',
                         'step_extrinsic_reward',
-                        'step_interestingness',
                         'operator',
                         'parameter',
                         'input_set_id',
@@ -279,7 +275,6 @@ class ParameterServer:
                         row.get("step", -1),
                         row.get("set_id", -1),
                         row.get("step_extrinsic_reward", 0.0),
-                        row.get("step_interestingness", 0.0),
                         row.get("operator", ""),
                         row.get("parameter", ""),
                         row.get("input_set_id", -1),
@@ -410,7 +405,6 @@ class WorkerAgent:
             target_set_name=args.target_set,
             target_seed=args.target_seed,
             target_samples_per_file=args.target_samples_per_file,
-            mira_descriptors=True,
         )
         self.base_set_state_dim = self.env.set_state_dim
         self.base_operation_state_dim = self.env.operation_state_dim
@@ -529,10 +523,9 @@ class WorkerAgent:
             mira_next_state_batch = []
             mira_set_action_batch = []
             mira_operation_action_batch = []
-            mira_reward_components_batch = []
+            mira_task_reward_batch = []
 
             ep_ext_score = 0
-            ep_int_score = 0
             ep_mira_score = 0
             ep_exploration_score = 0
             ep_total_reward = 0
@@ -590,28 +583,23 @@ class WorkerAgent:
                     )
 
                     current_set_state = np.asarray(set_state, dtype=np.float32).reshape(-1)
-                    next_set_state, env_r_ext, env_r_int_js, done, set_op_pair = self.env.step(
+                    next_set_state, env_r_ext, _, done, set_op_pair = self.env.step(
                         set_action,
                         operation_action,
                     )
 
                     r_ext = float(np.squeeze(env_r_ext))
-                    r_int = float(np.squeeze(env_r_int_js))
                     r_mira = select_bonus(
                         getattr(self.args, 'exploration_reward', 'directional'),
                         lambda: self.mira.compute_bonus(current_set_state, next_set_state, mira_z,
                                                        clip_value=self.args.mira_bonus_clip),
                         lambda: float(ray.get(self.ps.replacement_reward.remote(next_set_state))))
 
-                    exploration_reward = (
-                        (self.args.w_int * r_int)
-                        + (self.args.w_mira * r_mira)
-                    )
+                    exploration_reward = self.args.w_mira * r_mira
                     effective_alpha = float(self.args.alpha)
                     total_step_reward = (self.args.w_ext * r_ext) + (effective_alpha * exploration_reward)
 
                     ep_ext_score += r_ext
-                    ep_int_score += r_int
                     ep_mira_score += r_mira
                     ep_exploration_score += exploration_reward
                     ep_total_reward += total_step_reward
@@ -631,8 +619,8 @@ class WorkerAgent:
                     mira_next_state_batch.append(np.asarray(next_set_state, dtype=np.float32).reshape((1, self.base_set_state_dim)))
                     mira_set_action_batch.append(np.reshape(set_action, [1, 1]))
                     mira_operation_action_batch.append(np.reshape(operation_action, [1, 1]))
-                    metric_reward = [r_ext if self.args.w_ext != 0 else 0.0, r_int]
-                    mira_reward_components_batch.append(np.reshape(metric_reward, [1, 2]))
+                    metric_reward = r_ext if self.args.w_ext != 0 else 0.0
+                    mira_task_reward_batch.append(np.reshape(metric_reward, [1, 1]))
 
                     if len(set_state_batch) >= self.args.update_interval or done:
                         set_states = self.list_to_batch(set_state_batch)
@@ -665,7 +653,7 @@ class WorkerAgent:
                             if mira_state_batch:
                                 mira_stats = ray.get(self.ps.update_and_sample_mira_batch.remote(
                                     self.list_to_batch(mira_state_batch), self.list_to_batch(mira_set_action_batch),
-                                    self.list_to_batch(mira_operation_action_batch), self.list_to_batch(mira_reward_components_batch),
+                                    self.list_to_batch(mira_operation_action_batch), self.list_to_batch(mira_task_reward_batch),
                                     self.list_to_batch(mira_next_state_batch), curr_episode+1))
                                 mira_pair_source = 'async_replay'
                                 mira_replay_size = mira_stats['replay_size']
@@ -706,7 +694,7 @@ class WorkerAgent:
                         mira_next_state_batch = []
                         mira_set_action_batch = []
                         mira_operation_action_batch = []
-                        mira_reward_components_batch = []
+                        mira_task_reward_batch = []
 
                     set_state = next_set_state
                     set_action_steps = next_set_action_steps
@@ -740,7 +728,6 @@ class WorkerAgent:
                     print(
                         f'EP{curr_episode} Agent{self.agentId} | '
                         f'Ext_R: {ep_ext_score:.1f} | '
-                        f'Int: {ep_int_score:.1f} | '
                         f'MIRA: {ep_mira_score:.1f} | '
                         f'Explore: {ep_exploration_score:.1f} | '
                         f'Z: {z_source}'
@@ -748,7 +735,7 @@ class WorkerAgent:
 
                     from revision_support.galaxy_rewards import write_reward
                     write_reward(self.args, dict(episode_metrics,
-                        extrinsic_reward=ep_ext_score, interestingness=ep_int_score,
+                        extrinsic_reward=ep_ext_score,
                         mira_bonus=ep_mira_score, exploration_reward=ep_exploration_score,
                         total_reward=ep_total_reward, z_source=z_source,
                         mira_phi_loss=mira_phi_loss, mira_dyn_loss=mira_dyn_loss,
@@ -778,7 +765,6 @@ class Agent:
             target_set_name=args.target_set,
             target_seed=args.target_seed,
             target_samples_per_file=args.target_samples_per_file,
-            mira_descriptors=True,
         )
         self.base_set_state_dim = dummy_env.set_state_dim
         self.base_operation_state_dim = dummy_env.operation_state_dim

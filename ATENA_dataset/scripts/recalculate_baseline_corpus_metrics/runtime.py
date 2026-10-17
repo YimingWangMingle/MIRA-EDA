@@ -73,13 +73,18 @@ def reconstruct_mira_session(result_dir, env_factory=None, model_factory=None):
         args.seed + 777,
         args,
     )
-    model = model_factory(env.state_dim, env.action_dim, args.hidden)
+    import numpy as np
+
+    direction = np.asarray(np.random.default_rng(int(args.seed) + 777).normal(
+        size=int(args.mira_latent_dim)), dtype=np.float32)
+    direction /= np.linalg.norm(direction)
+    model = model_factory(env.state_dim + len(direction), env.action_dim, args.hidden)
     weights_path = result_dir / "policy.weights.h5"
     if not weights_path.is_file():
         raise FileNotFoundError(weights_path)
     model.load_weights(str(weights_path))
     LAST_LOADED_WEIGHT_PATH = str(weights_path)
-    return rollout_argmax(env, model)
+    return rollout_argmax(env, model, direction=direction)
 
 
 def reconstruct_greedy_session(result_dir, env_factory=None, action_selector=None):

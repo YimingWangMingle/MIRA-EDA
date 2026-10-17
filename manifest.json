@@ -1,7 +1,7 @@
 {
-  "version": "mira_minimal_grounded_latent_v2_20261013",
+  "version": "mira_minimal_20261017",
   "includes_data": true,
-  "total_bytes": 966136437,
+  "total_bytes": 964060567,
   "files": [
     {
       "path": ".gitattributes",
@@ -14,149 +14,194 @@
       "sha256": "b6efe02c0d90d82c1d00169b57633999346a1020fbc383b8f0e23e96f814613b"
     },
     {
-      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Analysis/TrainingAnalysis/actions_analyzer.py",
-      "size": 10793,
-      "sha256": "b8dffb4a3172ec634fc91707e9fb95522f1082c6dbf157fe054f86ba79bb1505"
+      "path": "app/__init__.py",
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
-      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Analysis/agent_analyzer.py",
-      "size": 65680,
-      "sha256": "8a52a17f912aa1e6352eaca9217dcc5561c472c7333557eb3c1810662bfe1843"
+      "path": "app/data/sdss/bins.json",
+      "size": 396630,
+      "sha256": "6efaa0217443083958d4ff259e5c4ada1f7ecbd0ea2cf47166b28ab51b342614"
     },
     {
-      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Collections/Counter_Without_Nans.py",
-      "size": 362,
-      "sha256": "e688cde5d7126bbcdcdc0649398927a6f048454d699950854cc90f0f03746bee"
+      "path": "app/data/sdss/column_forced_types.csv",
+      "size": 18,
+      "sha256": "ed575a2f09691e164c026437942f601042d06a91bba85bd1560beb9bd0689c5b"
     },
     {
-      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Configuration/config.py",
-      "size": 1596,
-      "sha256": "d3ca55703e44ac41c558f63a938cd6f0b7eca2ed87c449d21bbe73d5a5752f00"
+      "path": "app/data/sdss/columns_to_discretize.csv",
+      "size": 10976,
+      "sha256": "8a740e2469e54d239ae8f555454e5a75b657bf15e5ca763bc59a001b76a1b104"
     },
     {
-      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Envs/Envs_Utilities.py",
-      "size": 963,
-      "sha256": "5cedffbe96bc670bd56ffbefa6f50a0f73ef4267b8cb6d1339443b78ec8d4f1d"
+      "path": "app/data/sdss/foreign_keys.csv",
+      "size": 249,
+      "sha256": "a57ef771d1cd2cee93c21c7cf2af97d4993b70cfcea4c3cc4bedd813ea8e385d"
     },
     {
-      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Evaluation/evaluation_measures.py",
-      "size": 57064,
-      "sha256": "ccf0715c1b021f89e07b969aad8f0092971112e2ec77537fd9039d3133637c15"
+      "path": "app/data/sdss/galaxies.csv",
+      "size": 351894745,
+      "sha256": "4a8af7c032745039e43fd7dd3abf2720da84a021e3f81c6e67f2e0d970f2e072"
     },
     {
-      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Evaluation/evaluator.py",
-      "size": 55202,
-      "sha256": "0f4a85e39c0ba741996782d29f1b240fa91658941dc5841cf60eb8e2c893c01e"
+      "path": "app/data/sdss/galaxies.csv.gz.part00",
+      "size": 94371840,
+      "sha256": "b6f4449a99fb9f4cbe603ee5c0ad93d47d01973097a4cd99cdae821e635ac55e"
     },
     {
-      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Notebook/NotebookUtils.py",
-      "size": 49338,
-      "sha256": "7cbfa31a469a6d0fdc66cef8832f1e6d42855e3a3d4f80d27ce9a96c614a9df1"
+      "path": "app/data/sdss/galaxies.csv.gz.part01",
+      "size": 41361162,
+      "sha256": "120662ef624d93eea50a832c4f3f2dab3b9ead9032f245a0f205805fad8381b0"
     },
     {
-      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Utility_Functions.py",
-      "size": 5348,
-      "sha256": "053a471d15c64535b739a63f9d95fde152f5c68bdfe8eb212c4634b46c041bca"
+      "path": "app/data/sdss/galaxies_index/correspondences.csv",
+      "size": 2962,
+      "sha256": "e2187604101749becc8a74c4a1078ea0170f52acff3f8adb7b483b561f7d1454"
+    },
+    {
+      "path": "app/data/sdss/galaxies_index/groups.csv",
+      "size": 20451718,
+      "sha256": "19e1248d467009b59903578a4bd5e947b36b84cc037033365b907b4601e87fe7"
+    },
+    {
+      "path": "app/pipelines/__init__.py",
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "app/pipelines/dataset.py",
+      "size": 2946,
+      "sha256": "782daa501f311887338852c3fc2fb67bcd36e8958afd6fc1bb9a450cf0eebad1"
+    },
+    {
+      "path": "app/pipelines/pipeline.py",
+      "size": 16450,
+      "sha256": "d25e49fa10cd013c4c729dfc9993ce9205f4a08b09dbdcb10348f65a1fb5028a"
+    },
+    {
+      "path": "app/pipelines/pipeline_precalculated_sets.py",
+      "size": 15021,
+      "sha256": "600cd75b46499080a123f2b205897161df5a1a52c5788a01702394eeb6560ee6"
+    },
+    {
+      "path": "app/pipelines/predicateitem.py",
+      "size": 4267,
+      "sha256": "96a68be058c9596de300025981ebae481652a257dc5104d0d7ef1ee84790af2e"
+    },
+    {
+      "path": "app/pipelines/tools/__init__.py",
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "app/pipelines/tools/memoryMonitor.py",
+      "size": 434,
+      "sha256": "adfdd79441effa7e0799ecf690b686f5af8e12b654d9a66a59a371d511bc7906"
+    },
+    {
+      "path": "app/pipelines/tools/operator_logging.py",
+      "size": 2906,
+      "sha256": "0f3394d018ed0942b1a582f289c271388b3136105b71b9cee5dfa0f54383066a"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/arguments.py",
-      "size": 8088,
-      "sha256": "4b7b9fe023c42e9d8e8975b997a331294c9581c1cb2a9fdeaf3f511d3ad876b2"
+      "size": 7828,
+      "sha256": "53d40af940afc589bd33afff2c0feda18c74925dd5655695985937138dc65b91"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/envs.py",
-      "size": 4181,
-      "sha256": "190bec9cdbc33c52c3ecdae322358fc003dc6911c2f7184fabb039d53bc748cf"
+      "size": 3094,
+      "sha256": "3ace2d1ab0d70fd5acac552d0beec6bfd9027864205246a0338e13129191bcd2"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/__init__.py",
-      "size": 504,
-      "sha256": "83d4449363f1e89fbb3b8236d7c92a0960e35efb41977247742a9a0d7cb6334a"
+      "size": 275,
+      "sha256": "1c661b18f8441575dc13de70d80ce7891c2493802a054146ff38d7c139f0540c"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/big_flights/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/big_flights/columns_data.py",
-      "size": 2746,
-      "sha256": "ff178f33d8db897e661be59d835d5d50b8b52243c7ee0127d40e08e37321595c"
+      "size": 2427,
+      "sha256": "ac6dfcc0f73db85fd22affe6c35671655109be83eead042ed9310c733933f9f1"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/flight_delays/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/flight_delays/columns_data.py",
-      "size": 2156,
-      "sha256": "5b0d77661dc4e8bd70382facb41602207bda768eeaf7f8ab3d5098addb0fd258"
+      "size": 1848,
+      "sha256": "b0b99c3eab982e2bd68ea8fc4c8f22fdf6cb42b360c71ea74eab3c5b74751dfc"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/netflix/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/netflix/columns_data.py",
-      "size": 676,
-      "sha256": "ff2fb58cbbf6fb438bd9cd1623b3476573ba057b1902f25380b6ca253f5a5507"
+      "size": 393,
+      "sha256": "a6af6dd2a9b0aa57ad47782480e5093ccafbdaf8fc5c1cf3d68990d9d3f47cad"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/netowrking/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/netowrking/columns_data.py",
-      "size": 11366,
-      "sha256": "6e24f65461c4a26cbe83c89391757b2da1db9125499c33cf047e26a5f1d11a77"
+      "size": 7783,
+      "sha256": "a7920ffc4028da57190e5cb9a63898e7d0afc9e777de3b88f799b26a51e5db17"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/wide12_flights/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/wide12_flights/columns_data.py",
-      "size": 3367,
-      "sha256": "00d8222b32d14e7fd72d1a2facc0d353ed511c6209c341f239dce6980b442540"
+      "size": 2969,
+      "sha256": "b9225bd90de1b920a607b8070e627762997184c1e4575ca8696a3bd483d59dfe"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/wide_flights/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/data_schemas/wide_flights/columns_data.py",
-      "size": 3201,
-      "sha256": "279c2610e37756bf911b857d35a290a934550e7c7a12b049f843f3e9c20a1c5e"
+      "size": 2817,
+      "sha256": "a3002e38ce52e5566118c499f421278cae0f07cae073e85d256484f4eefc9b9c"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/envs/__init__.py",
-      "size": 55,
-      "sha256": "daaf8296eb8a63a4ec13f003e8f8cdf18496ff3af56beb78523af842ec501638"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/envs/atena_env_cont.py",
-      "size": 54228,
-      "sha256": "68aeb0cf22a536c68eff2da5292127927a99f621fc0ad9f95612397d1c7a6a51"
+      "size": 35025,
+      "sha256": "5052169b95594a0f10485ef52405e2021afd25b6477b8b59b203484a10bdcee7"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/envs/env_properties.py",
-      "size": 25801,
-      "sha256": "93ce2adcc822361ada3fc257baea40d9639edc79550ddfa7eb95fc144b12fc27"
+      "size": 17896,
+      "sha256": "1112a69d7a5980ad48dbe60bc72e7b9c60ffb565232f4011dee98303b3aa3cd7"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/envs/helpers.py",
-      "size": 9226,
-      "sha256": "01d29e292af21c3f33b9714d475b0a9acf780919ce9768ae4e7565810deb7274"
+      "size": 7929,
+      "sha256": "9bb08cef6c9725a4c0524a7aed0a3941bd4177f7f9f679c12b14450604c2a708"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/flight_delays/raw_datasets/american_airlines_sunday.tsv",
@@ -180,53 +225,53 @@
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/global_env_prop.py",
-      "size": 2044,
-      "sha256": "a8017ebd0bc36f0fb6a8f579a6d8294b2b75746919f89d06221c78ed083bddca"
+      "size": 1673,
+      "sha256": "6aa7df0a6435594f17a04a41081239247e0495d4f34e6efeb74869140a2ab4a6"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/lib/big_flights_helpers.py",
-      "size": 5354,
-      "sha256": "71f0f1761a574812ade7fabbd2d993800d26f98313494ebdc0ba2435d661d84f"
+      "size": 4468,
+      "sha256": "1b63c2feea7a2b647661ecb62bd52b49c71eeb887653965aa4867475e79d85cf"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/lib/flight_delays_helpers.py",
-      "size": 3982,
-      "sha256": "3c4f4393701b61f2af61c87620ea544772a46f4d1894cf35a9b02ec90434bdd5"
+      "size": 3126,
+      "sha256": "e83a949fdd096edb0821ae9d72ff0385fd6f58dca4ed953d79809dee352253b2"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/lib/helpers.py",
-      "size": 10455,
-      "sha256": "5a9239bd89b9c0bc0cd5b4446cb76779df43c155bd08d10645f01b028296af18"
+      "size": 6182,
+      "sha256": "61bb30fa52c7dccab32b3ad5eb902b5b21af637294ad278ae1c20b4789478571"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/lib/netflix_helpers.py",
-      "size": 1834,
-      "sha256": "0bd08607dbed24be0e3e169325badf5543b998ae889f1556e216e4ac4abf497d"
+      "size": 1660,
+      "sha256": "ecfc108d81086e5fd1c747a09beb6347f8c42703354bc1d8cfe5871bf1d2e964"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/lib/networking_helpers.py",
-      "size": 4788,
-      "sha256": "6ac9dc843c6b69237fbe4dc28ece2071daa431c71529de458fc5e354cc9cf40f"
+      "size": 3934,
+      "sha256": "2ffc2dce7deb42374c8366d22e062d9c34eb92b29b9501406f5de22f327386c1"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/lib/tokenization.py",
-      "size": 9430,
-      "sha256": "72d17a929e4cfd6e6f355fe97a9d5c1a33b50744beeb5c344cd0a8a4d62b7add"
+      "size": 5097,
+      "sha256": "7342b55e0e405e3597146c509d0a27bebfb28a6e23d1f538d4a3d8733ecdfa64"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/lib/wide12_flights_helpers.py",
-      "size": 6132,
-      "sha256": "f5d04b2edc6465916594f1f9cb37e0f2b4d1f89dfac28704677a88b3c77fc8b9"
+      "size": 5241,
+      "sha256": "30ba425dcf08f454dbc4294966624e6f378d25b604eaa87c7d3c5b6291cded2a"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/lib/wide_flights_helpers.py",
-      "size": 7480,
-      "sha256": "8d8e49c2de488d36a15a8d1f3071e551408d625a22efecf398b423a6c55db78f"
+      "size": 6568,
+      "sha256": "01d43c195b707948db2635004d71a4dfb01d04c1833b3be89726e831e01661a1"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/reactida/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/reactida/raw_datasets_with_pkt_nums/1.tsv",
@@ -260,53 +305,53 @@
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/reactida/utils/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/reactida/utils/distance.py",
-      "size": 7101,
-      "sha256": "20b1fd85db79b5c4975310b0ed15031b9c9ddf7d3b21e231a7a30ec272c6bb89"
+      "size": 5374,
+      "sha256": "aa5eb2076d8a5f54c7b7d7616cfe58227117b67ac3b4f2acb6a9b8504c2d7b06"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/reactida/utils/utilities.py",
-      "size": 15973,
-      "sha256": "f8ec9dfc7c9776a18a8d9eef6c7a0bb5936e68a20be8bde2d3aeb989ba194e4b"
-    },
-    {
-      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/models/Greedy/greedy_agent.py",
-      "size": 2297,
-      "sha256": "797c952b6e738f4147c3accd0eaa7369ddac770d30b15da5181a5be0b128b61f"
+      "size": 13401,
+      "sha256": "02c451602600e1c2bdbd77e203c4cd6d532d50f0bb3c54a05c71ca0cf031828d"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/models/chinerrl_models/chainerrl_ppo.py",
-      "size": 13292,
-      "sha256": "37c01e471e667574b402cbb8783a27ffd5bf163023e79a6fc9fe4641eec26145"
+      "size": 11037,
+      "sha256": "9471687188bfc3aa875c7bd8df85e7dd5b92c96aaa45a2411f5213058612bd88"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/models/chinerrl_models/parameterized_softmax.py",
-      "size": 11717,
-      "sha256": "dd9bc1ff8ee3de3506335d7b3c6d8f09664fdd7018cde5d59c7143c33416af30"
+      "size": 8966,
+      "sha256": "a67e88082a171b8ffcd91f1bb7b2dd1c2ee21393a50a3cba21ae4841e7b8ee28"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/models/clipped_gaussian/clipped_gaussian.py",
-      "size": 4465,
-      "sha256": "b774b5902ce68a09b0fe96bc3ca111cdc00761226267b515580f271f6c304997"
+      "size": 3768,
+      "sha256": "7d4a84e1130c12ed102f96d0776fc9876ff66a6fd4c43e44f9f885309c927d1d"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/models/clipped_gaussian/clipped_model.py",
-      "size": 114,
-      "sha256": "f7d1596580ff906d6155961a6d97c9ab244f237de80a2643655fc1a667e701e1"
+      "size": 109,
+      "sha256": "90b97879da60bad3757fdb96dd07ba3b085817fe745ea02c9983e0282a9bd3c0"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/models/clipped_gaussian/train_ppo_gym.py",
-      "size": 4408,
-      "sha256": "112b5303e5f8d326556eea0e38f9531cd5cdec9920a1ab6736909b47973cd6a3"
+      "size": 3886,
+      "sha256": "a7d7b3e4190fe592d50908c070484b1df90c59d79934d1eb8fadc7862d2550d5"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/models/clipped_gaussian/train_trpo_gym.py",
-      "size": 4751,
-      "sha256": "08471fb8b7093a58d037bb5d3935b283da403dabe0a99d93ef787283b859d9c2"
+      "size": 4048,
+      "sha256": "d7eeb88b434ec5aa3a16964b6d4e483338af769117dc56d78c8244e999bf9ef8"
+    },
+    {
+      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/models/Greedy/greedy_agent.py",
+      "size": 1491,
+      "sha256": "adae8a206e4612b9a9708103c635ef284e77d5dceaf00b646ad736e91f35b668"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/requirements.txt",
@@ -315,23 +360,68 @@
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/test.py",
-      "size": 1956,
-      "sha256": "f90af464105842112db8ad23af8119a85a843be43348737f689f65ed6db80eda"
+      "size": 1680,
+      "sha256": "8f1232065689622ac6a25d4047d991ba5cdf44e504c6ed843fb1685513e02136"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/train.py",
-      "size": 2832,
-      "sha256": "b1e376dffbcd17a3846907f11fa809ca75d8a512da5ebdc606eb041f80c3e26a"
+      "size": 2588,
+      "sha256": "00cc1dbd3d0bdcc6afdabdcc1776a900ee4b841dade00cb1e14f974a51be69cd"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/train_agent_chainerrl.py",
-      "size": 27044,
-      "sha256": "ffc0121fb2a832f68cf3e156646a86da7ed2d52198ec1d26ac460cd109006a45"
+      "size": 18541,
+      "sha256": "7d67612fbe2232614811034b9cf97e6b716f915fc97971df6067a661deb8932f"
+    },
+    {
+      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Analysis/agent_analyzer.py",
+      "size": 41181,
+      "sha256": "5e1154090cc6c980a1f0e7e5d64ee57b08ace092446aea04b2515b4bd881a6d6"
+    },
+    {
+      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Analysis/TrainingAnalysis/actions_analyzer.py",
+      "size": 9328,
+      "sha256": "aed958cf78cf077e26b3a7ba3d0c311d663436a930361cc86503be9f2fa5cc76"
+    },
+    {
+      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Collections/Counter_Without_Nans.py",
+      "size": 275,
+      "sha256": "aa1fd03603a7d87e6bd4b1afe309e24f4409faa0afb19845a0a05a0f5db8d85a"
+    },
+    {
+      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Configuration/config.py",
+      "size": 623,
+      "sha256": "98378653b586797f30d83f10c51b874b0cafe23036f46918bcdbd03e9ae5ad79"
+    },
+    {
+      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Envs/Envs_Utilities.py",
+      "size": 728,
+      "sha256": "8e46c6f432d4555911fdf30db1c2bbcf0907d2b7cbbd487cf8393a847fe4932e"
+    },
+    {
+      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Evaluation/evaluation_measures.py",
+      "size": 30666,
+      "sha256": "2a23eb73a204c2c136c8e187d1d80862676d2d3015d0292bd9d7c8cdd0e3679e"
+    },
+    {
+      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Evaluation/evaluator.py",
+      "size": 47322,
+      "sha256": "f9e75e4c3fcf96b6599615dfc105409e1ad439cbae73a33c77915715cb5d9bdc"
+    },
+    {
+      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Notebook/NotebookUtils.py",
+      "size": 42478,
+      "sha256": "17f85c6853972e93cb626915c03f076f002bb0fe6f6c108dbba5e86388a90f60"
+    },
+    {
+      "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/Utilities/Utility_Functions.py",
+      "size": 3812,
+      "sha256": "c9f141ec4f29702d48a43fa89dcaaed9c9ac5e9f7213e15f02e0bbafe59d6a28"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/datasets/cyber/1.tsv",
@@ -375,133 +465,133 @@
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/distance.py",
-      "size": 7064,
-      "sha256": "78575f86f64855efd71bedc242bf4d1165488e19128b16184783a4918121fa7a"
+      "size": 5356,
+      "sha256": "2b37038b02b2a1190af71adffbca9fa87b11f0fa16d69f3120e0f3acea486ac4"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/metrics.py",
-      "size": 8337,
-      "sha256": "332464c2478504dc77d1894fe19aaf6e95ab4ddf33e2daa67f061cd300c85b48"
+      "size": 7743,
+      "sha256": "c8b48e43b82713166efa7b2b531a1a976d78b0242b4bc4345a786527c7af7d3b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/references/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/references/cyber/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/references/cyber/dataset1.py",
-      "size": 9474,
-      "sha256": "1b89631460adeacdd08cd766412c01f56b2539a141bc3823f618c2ccaa812018"
+      "size": 9304,
+      "sha256": "4aa0b42b0a11bcb28016b130a2cc55c3e1b81334598ba185fd8864782948fe94"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/references/cyber/dataset2.py",
-      "size": 8193,
-      "sha256": "1a8be05aa8fe333b6c61e43aed71503cacf40dfac22ffa86d2a03bbb8cfb9db9"
+      "size": 8037,
+      "sha256": "15c656fe849fa21e303abb64c199be326a125d941b26c5915c70ffbb4d22967a"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/references/cyber/dataset3.py",
-      "size": 8568,
-      "sha256": "b7c99fedf050986d6119f6410f0e6d027141c56327f66eecd5f998e9d78db31f"
+      "size": 8413,
+      "sha256": "e80c57d9441a513a35dfb6f4344e06ec5d1a6bf4c402c65c98f9177591f87174"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/references/cyber/dataset4.py",
-      "size": 8659,
-      "sha256": "86e7432cb55b0a9f378e0b7372c75331804b81dae4114da963d650487892f96b"
+      "size": 8502,
+      "sha256": "a5a90bd0837fdfd9f37c79a30d0c5d68a9d28542ec921cc169e4611eb4aec098"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/references/flights/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/references/flights/dataset1.py",
-      "size": 6540,
-      "sha256": "9675a28d1d872442800dbcf077575319826a1780af6beccdc50a8a57dce22fbc"
+      "size": 6420,
+      "sha256": "6362ca07a3e08d4231aa279be8834b14256dc192c1e2fcbab30030ad70c3e991"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/references/flights/dataset2.py",
-      "size": 7229,
-      "sha256": "fcd37bdfd5214a08c376d5997b12860da281caab29ba91b654106749fcc81e9f"
+      "size": 7100,
+      "sha256": "8abbc3b84cbeed6de3d8d0c3a90914a8c0606bf7fbcfaa3497df74fe7f3c61a0"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/references/flights/dataset3.py",
-      "size": 6931,
-      "sha256": "3a6dd140d35fb9b095eefbae8891fe2e022bb11148d5154aa591408a223a6a31"
+      "size": 6805,
+      "sha256": "32fda22d41e104aced45c82bbb4967238887c6c03564bc99ee8bb6aaac1228d9"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/references/flights/dataset4.py",
-      "size": 6679,
-      "sha256": "5c38854dcc7f813f79506c9ef4b08330d3326c3856a563135af57506d10b448f"
+      "size": 6553,
+      "sha256": "09d24e234a610a0518017ab82e561bf5cb448f3814a707159475a00751752a10"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/evaluation/utils.py",
-      "size": 39636,
-      "sha256": "f6e37f5bf034aef1a9c528e47378c6e49244611173c83493c7036b2b5d25387a"
+      "size": 19560,
+      "sha256": "b30fdf331e8f00483635dd097811307af24b326df057ff6ef02458b4bb054730"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/simulation/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/simulation/actions.py",
-      "size": 1757,
-      "sha256": "1dcc06c499571043b99b0e96146b6200a6c35ab64377856a9f60f7ea25056f4d"
+      "size": 1690,
+      "sha256": "d78d05969defdccce0795606b5ebbb9ebda7f63df9f7f34f04c52fbda35ea96e"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/simulation/actions_simulator.py",
-      "size": 6510,
-      "sha256": "6876e7e9b30b12fbc96b9d80dfb5c43e9f6d94a1ab54985c7d70e6be187cc0b4"
+      "size": 5076,
+      "sha256": "08bc06abaaebba2b17184c2c47519544767f7ba0624579c52aa64b7d29a29361"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/simulation/dataset.py",
-      "size": 3853,
-      "sha256": "96316990efbd0134ed6d7decf85e1decf7ea99fdaa97bbf860258cc277998dcf"
+      "size": 3710,
+      "sha256": "a842d7d0f8ae9a701fb49716e37ecd7abf7c3570ccebca1fd276eebf6250ef08"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/simulation/display.py",
-      "size": 7990,
-      "sha256": "cbdf48398aaa99eab1c59bbf9951842f993240089d31d709f25986db0c22d6c8"
+      "size": 7252,
+      "sha256": "22a9bbac80f4fa6f332412a33041565d344188b465ecfed18f807b889cf7243b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/simulation/state.py",
-      "size": 5466,
-      "sha256": "aef393c87f3e93a6f434a6ef22455669c7fd3ed0b303439b1871087716be283f"
+      "size": 3581,
+      "sha256": "ba24ce6ce2351997949c545e4c9bb34a513625f9bd136ca15ad7a3fbdd08dfe9"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/simulation/tokenization.py",
-      "size": 1509,
-      "sha256": "31c40caea8b9bd3438ba02e9c18a61e4ac9d3d0c31e7ee66518cbac6765bfb1a"
+      "size": 1081,
+      "sha256": "4c269c5f7bb83c8739f23e9225766d563dd96a4b14f890e31d1a95ad009cc31f"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/simulation/utils.py",
-      "size": 1319,
-      "sha256": "78407f482067625340b39f39606192e2410f189e957d1c3110912e898a5139c4"
+      "size": 1280,
+      "sha256": "3f8ca9cb54eb6ad221955f672757fd9555c3be95cb4fb497fd0cde33c7f63e3f"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/utils/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/utils/data_structures.py",
-      "size": 362,
-      "sha256": "e688cde5d7126bbcdcdc0649398927a6f048454d699950854cc90f0f03746bee"
+      "size": 275,
+      "sha256": "aa1fd03603a7d87e6bd4b1afe309e24f4409faa0afb19845a0a05a0f5db8d85a"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/main.py",
-      "size": 2061,
-      "sha256": "192afa8f9d631f6ae13b6d6d074e93023818fd7611a958bb1427a66402951153"
+      "size": 1244,
+      "sha256": "2fadeca849818e14f1a31f84553e73818983e6c5b270c8edfd2ad0d458f6d9d9"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/requirements.txt",
@@ -509,64 +599,14 @@
       "sha256": "5144f4af4ae4a2e25d3dd5562bc939c64be5f8291c29f3d7eb7a012e1b0aa6eb"
     },
     {
-      "path": "ATENA_dataset/MIRA/mira/__init__.py",
-      "size": 17,
-      "sha256": "74bd8e706a7d02df0f3342129ab5379c1fc8e76ddfa0dbad7a78e0e592b29987"
-    },
-    {
-      "path": "ATENA_dataset/MIRA/mira/env.py",
-      "size": 12843,
-      "sha256": "02ea824a17320ba7fd08e8ebc9634a311bf30324b9d5ca09bb1408be2786a625"
-    },
-    {
-      "path": "ATENA_dataset/MIRA/mira/evaluate.py",
-      "size": 3817,
-      "sha256": "6655130f5ed9d2663ef45ef4f7fb803567581edde1a6264e9092bb73320654de"
-    },
-    {
-      "path": "ATENA_dataset/MIRA/mira/models.py",
-      "size": 2010,
-      "sha256": "185734876b9f27a5b24d7e86e71072f8168455f1e52d0571cc762eb7d200747d"
-    },
-    {
-      "path": "ATENA_dataset/MIRA/mira/rollout_pool.py",
-      "size": 1385,
-      "sha256": "d240ba304883761132db1894c728290b0ae1538300cafe89c71541fb43829f75"
-    },
-    {
-      "path": "ATENA_dataset/MIRA/mira/swa.py",
-      "size": 1764,
-      "sha256": "57356d4e27cfefa87a0d66e3b790b0a86d584fe35ba831dfdcb87e7294fcb0b3"
-    },
-    {
-      "path": "ATENA_dataset/MIRA/mira/train.py",
-      "size": 15580,
-      "sha256": "c328725dfcfd1be1f62277f59dce0595d83db80ec94b9330a2aca423e002a961"
-    },
-    {
-      "path": "ATENA_dataset/MIRA/requirements.txt",
-      "size": 116,
-      "sha256": "0fad4fcd00fdba20a314c44fe17545409321ee5ad62b7765c252faebd72b94d9"
-    },
-    {
-      "path": "ATENA_dataset/MIRA/run.py",
-      "size": 3409,
-      "sha256": "13dc71187635e66ab6048cd1584f35e1ce6a07e47a87378814c290a96ecdfbbf"
-    },
-    {
-      "path": "ATENA_dataset/MIRA/scripts/run_all.sh",
-      "size": 622,
-      "sha256": "c90c9dc8c5fe556a4527c6285d575ff1eab7adf5584eb84cbf70ec1be74cda7c"
-    },
-    {
       "path": "ATENA_dataset/atena_baselines/__init__.py",
-      "size": 63,
-      "sha256": "1a970706cf43950436726cb61012f1fedb9981f6d3b4edb0b4a60072a685bab4"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/atena_baselines/env.py",
-      "size": 20521,
-      "sha256": "0924ba52550d38409f8ecae0f3955d17a302f62885a043caa98e1d352daa9b04"
+      "size": 20221,
+      "sha256": "b28dc04af62346388022e90d53c961e1633c6d20ea53822665dadddf09fee7ab"
     },
     {
       "path": "ATENA_dataset/atena_baselines/evaluate.py",
@@ -595,33 +635,73 @@
     },
     {
       "path": "ATENA_dataset/atena_baselines/train.py",
-      "size": 14505,
-      "sha256": "c0c3ef8f2c8f59be1b2d3d3be2d0bb3c75c03bca6191d8ad6ce51d75934bc521"
+      "size": 14502,
+      "sha256": "e696fe71c243609304a0ce79f0fada0ec11621cc13ff6d4dbd8cafd4a1d87864"
     },
     {
       "path": "ATENA_dataset/atena_common/__init__.py",
-      "size": 72,
-      "sha256": "ad8e5dbfcc6fb1af32ffa950069966bb6532e1cae2e9ba227f74aea80ac695e8"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "ATENA_dataset/atena_common/costs.py",
-      "size": 4312,
-      "sha256": "85d9aeeadc61da3db6778d1ece529252109eae122a3bab147e090f012361ec07"
+      "size": 4082,
+      "sha256": "6a21958ca97b85c6642468d23940bebc7bcafb1fb12389e4055f11fa9ed383b6"
     },
     {
       "path": "ATENA_dataset/atena_common/simulator.py",
-      "size": 985,
-      "sha256": "e1bcd4b7265d0dd60972225f2184dcac22c4c39108dc6a5f54174e96b9b3f4aa"
+      "size": 904,
+      "sha256": "ca812653f62d0f56b3771317d8d3bdc9cf3cc9100175122040a9b9230e7cfd8a"
     },
     {
       "path": "ATENA_dataset/atena_common/task_reward.py",
-      "size": 4570,
-      "sha256": "18c8e5bc5a0503bbf742a3ab18300b3cb34be6dcf2c9c0b5aa47f721ebbee471"
+      "size": 4504,
+      "sha256": "c8161f3402c2cd2709ea7dea849e58d567ade5a6711ca17f6545b3df5c477252"
     },
     {
-      "path": "ATENA_dataset/manifest.json",
-      "size": 27094,
-      "sha256": "d9b9a054264f5b19f6bbb8802faa7c690f0e2d4b19658e48041835d900996103"
+      "path": "ATENA_dataset/MIRA/mira/__init__.py",
+      "size": 16,
+      "sha256": "8633703dee42b94065c849da8a203d59e04a62aef0b962470f4a961086ab75a7"
+    },
+    {
+      "path": "ATENA_dataset/MIRA/mira/env.py",
+      "size": 974,
+      "sha256": "60456581dc6b0b97c285f4d49519f4dc6412acf0d663ee803d11af3f95c2e7e1"
+    },
+    {
+      "path": "ATENA_dataset/MIRA/mira/evaluate.py",
+      "size": 3817,
+      "sha256": "6655130f5ed9d2663ef45ef4f7fb803567581edde1a6264e9092bb73320654de"
+    },
+    {
+      "path": "ATENA_dataset/MIRA/mira/models.py",
+      "size": 2010,
+      "sha256": "185734876b9f27a5b24d7e86e71072f8168455f1e52d0571cc762eb7d200747d"
+    },
+    {
+      "path": "ATENA_dataset/MIRA/mira/rollout_pool.py",
+      "size": 1385,
+      "sha256": "d240ba304883761132db1894c728290b0ae1538300cafe89c71541fb43829f75"
+    },
+    {
+      "path": "ATENA_dataset/MIRA/mira/train.py",
+      "size": 14578,
+      "sha256": "9fdc1bc555d9889418bc1c958ce94aab33045541fbbdebf088d94fd2c5ae96f8"
+    },
+    {
+      "path": "ATENA_dataset/MIRA/requirements.txt",
+      "size": 116,
+      "sha256": "0fad4fcd00fdba20a314c44fe17545409321ee5ad62b7765c252faebd72b94d9"
+    },
+    {
+      "path": "ATENA_dataset/MIRA/run.py",
+      "size": 3120,
+      "sha256": "f3088ec9b35563936d5de3ccfb65d64b6ad0c235f4958f6104fe488a9901f204"
+    },
+    {
+      "path": "ATENA_dataset/MIRA/scripts/run_all.sh",
+      "size": 622,
+      "sha256": "c90c9dc8c5fe556a4527c6285d575ff1eab7adf5584eb84cbf70ec1be74cda7c"
     },
     {
       "path": "ATENA_dataset/requirements-atena-baselines.txt",
@@ -640,8 +720,8 @@
     },
     {
       "path": "ATENA_dataset/scripts/evaluate_official_atena.py",
-      "size": 7652,
-      "sha256": "db29947f78b5b4da650921eda0058f1df10c8d482e7fa611b6aa1a8793a87e51"
+      "size": 7610,
+      "sha256": "e4e2ac2f85cd41533fddbb98b0ab08db9bdde065e6f06d635509cfdb100be248"
     },
     {
       "path": "ATENA_dataset/scripts/evaluate_official_atena_batch.sh",
@@ -650,8 +730,8 @@
     },
     {
       "path": "ATENA_dataset/scripts/recalculate_baseline_corpus_metrics/__init__.py",
-      "size": 3483,
-      "sha256": "1327cb87f627f2386f3a4364a2ae13aeb44c5be5219cc65e9112dc808256d798"
+      "size": 3656,
+      "sha256": "bee341486c8015376381aca396d1e255dfbb988775ff895e2942357ed1ead965"
     },
     {
       "path": "ATENA_dataset/scripts/recalculate_baseline_corpus_metrics/application.py",
@@ -680,8 +760,8 @@
     },
     {
       "path": "ATENA_dataset/scripts/recalculate_baseline_corpus_metrics/runtime.py",
-      "size": 6323,
-      "sha256": "18807f168610becaf39710c9337a9f200648fc49080779b146534c4bd0572a98"
+      "size": 6566,
+      "sha256": "c5436021c0bcd138da85f493f5be88c9e38464650a522ef1890dda9f55095d2e"
     },
     {
       "path": "ATENA_dataset/scripts/recalculate_baselines.py",
@@ -700,8 +780,8 @@
     },
     {
       "path": "ATENA_dataset/scripts/setup_official_atena_venv.sh",
-      "size": 1312,
-      "sha256": "0d6771977d712f67abf0213ed6e5d99e7130da4c0be025a47fd93beff382ca56"
+      "size": 948,
+      "sha256": "1c0904c8e70ed2f2ba2dd14040e904c89d4e3f813d4f231fa990b438595641f0"
     },
     {
       "path": "ATENA_dataset/scripts/setup_venv.sh",
@@ -710,193 +790,63 @@
     },
     {
       "path": "ATENA_dataset/scripts/summarize_costs.py",
-      "size": 3215,
-      "sha256": "7eb9b2545866bbb2db9471f9e6cb5886ad586d2f8d5cc4408b670388a8e40761"
+      "size": 3145,
+      "sha256": "cf94dca4ba05453c4af938dcef4b23c3d4b2683de1952ab66d231ef9332333d8"
     },
     {
       "path": "ATENA_dataset/scripts/summarize_results.py",
-      "size": 7427,
-      "sha256": "f0e42950f4d4b59cb8589944419ea84547f19547594473849cdc78eebda641d3"
-    },
-    {
-      "path": "LICENSE",
-      "size": 1076,
-      "sha256": "ef3660e11ae4418151bf502e1a0095a3cd81d9e57d33b98756f64e63e691badd"
-    },
-    {
-      "path": "README.md",
-      "size": 4321,
-      "sha256": "e2761497e54932d12c9eafdf5cc3ce3806efec59fb6c5ca18f71328ba727d479"
-    },
-    {
-      "path": "RL-launcher-atena-no-ext.py",
-      "size": 858,
-      "sha256": "49ae0d963ede08d4a90b3d387797dff0eefdaddb9ccbe8c0b679387b50fdc8ae"
-    },
-    {
-      "path": "RL-launcher-atena.py",
-      "size": 904,
-      "sha256": "1c7cd8ea92096c426f306c68ee881ee3ba1db839114bfc0c9601ee0ee7558b9d"
-    },
-    {
-      "path": "RL-launcher-dora.py",
-      "size": 903,
-      "sha256": "8eae80eaa9ebfc3fc0124be8460d8f222f59b27d6a49f2dd49c4087f40cbabd4"
-    },
-    {
-      "path": "RL-launcher-greedy-eda.py",
-      "size": 211,
-      "sha256": "a0edee4cc23466e1e9827d7f7bb724a220691b799b9efe9d44fb04947bf0599d"
-    },
-    {
-      "path": "RL-launcher-pure-a3c.py",
-      "size": 984,
-      "sha256": "629d586456e5492bcb215d050447983c80cf5476cc238426f9ddca37eb18d555"
-    },
-    {
-      "path": "RL-launcher-random-baseline.py",
-      "size": 216,
-      "sha256": "0494873f4b975536945f1b089bd1d387f55bb4d7c9bbdc0d8f8c3d6d3dad6719"
-    },
-    {
-      "path": "RL-launcher.py",
-      "size": 842,
-      "sha256": "74a46dc6d16ebc11983268322eb109686859f1d9b62634c575e42c2cc4335a78"
-    },
-    {
-      "path": "app/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "path": "app/data/sdss/bins.json",
-      "size": 396630,
-      "sha256": "6efaa0217443083958d4ff259e5c4ada1f7ecbd0ea2cf47166b28ab51b342614"
-    },
-    {
-      "path": "app/data/sdss/column_forced_types.csv",
-      "size": 18,
-      "sha256": "ed575a2f09691e164c026437942f601042d06a91bba85bd1560beb9bd0689c5b"
-    },
-    {
-      "path": "app/data/sdss/columns_to_discretize.csv",
-      "size": 10976,
-      "sha256": "8a740e2469e54d239ae8f555454e5a75b657bf15e5ca763bc59a001b76a1b104"
-    },
-    {
-      "path": "app/data/sdss/foreign_keys.csv",
-      "size": 249,
-      "sha256": "a57ef771d1cd2cee93c21c7cf2af97d4993b70cfcea4c3cc4bedd813ea8e385d"
-    },
-    {
-      "path": "app/data/sdss/galaxies.csv",
-      "size": 351894745,
-      "sha256": "4a8af7c032745039e43fd7dd3abf2720da84a021e3f81c6e67f2e0d970f2e072"
-    },
-    {
-      "path": "app/data/sdss/galaxies.csv.gz.part00",
-      "size": 83886080,
-      "sha256": "ef62de3efae40c85de7ab9d75c665c0b31abd6690617b13cb38f031cdbda3cb1"
-    },
-    {
-      "path": "app/data/sdss/galaxies.csv.gz.part01",
-      "size": 53673916,
-      "sha256": "1327619e54b6fa1bd35c0b4bfeb4e0e15fe2665752779472e3803ae7216cd88d"
-    },
-    {
-      "path": "app/data/sdss/galaxies_index/correspondences.csv",
-      "size": 2962,
-      "sha256": "e2187604101749becc8a74c4a1078ea0170f52acff3f8adb7b483b561f7d1454"
-    },
-    {
-      "path": "app/data/sdss/galaxies_index/groups.csv",
-      "size": 20451718,
-      "sha256": "19e1248d467009b59903578a4bd5e947b36b84cc037033365b907b4601e87fe7"
-    },
-    {
-      "path": "app/pipelines/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "path": "app/pipelines/dataset.py",
-      "size": 2955,
-      "sha256": "4e8494f97038a5c9292fea5f6ad141662321c56525e1479cf9f5c739c3df6db5"
-    },
-    {
-      "path": "app/pipelines/pipeline.py",
-      "size": 20839,
-      "sha256": "c9dad580c05e5c832b963fec326bd7c2dadc2635658fd40fc972d43c23d62c64"
-    },
-    {
-      "path": "app/pipelines/pipeline_precalculated_sets.py",
-      "size": 17532,
-      "sha256": "38b0e09797e2a6a9562ff30a10d07b17f3e937c09a3bb62544462c44d96b6a3d"
-    },
-    {
-      "path": "app/pipelines/predicateitem.py",
-      "size": 4271,
-      "sha256": "63ce7bbe0bfe08d234bc19c85e04d26a371573a0ef977a2f1d2d4c45a701863c"
-    },
-    {
-      "path": "app/pipelines/tools/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "path": "app/pipelines/tools/memoryMonitor.py",
-      "size": 434,
-      "sha256": "adfdd79441effa7e0799ecf690b686f5af8e12b654d9a66a59a371d511bc7906"
-    },
-    {
-      "path": "app/pipelines/tools/operator_logging.py",
-      "size": 2906,
-      "sha256": "0f3394d018ed0942b1a582f289c271388b3136105b71b9cee5dfa0f54383066a"
+      "size": 7238,
+      "sha256": "4a93a97dc1a4576eb085348d9c768f635c6f1037cf6037d494c5cbe43cef8d71"
     },
     {
       "path": "baselines/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
-      "path": "baselines/atena/A3C_2_actors/A3C.py",
-      "size": 24661,
-      "sha256": "459c48f9ccf0632d13f6fa47900f2d68d36e5693557aeba0b49f71050181a767"
+      "path": "baselines/atena/__init__.py",
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "baselines/atena/A3C_2_actors/__init__.py",
-      "size": 21,
-      "sha256": "9ceb0231d8f6e8d5c350ac30446d5b32959375c87120aff5a9658d1122f93144"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "baselines/atena/A3C_2_actors/A3C.py",
+      "size": 23591,
+      "sha256": "9e6c8fa292a34c5e4d7d602586d2a7bbc53b1c0e3b315aa1034302d5b359eb40"
     },
     {
       "path": "baselines/atena/A3C_2_actors/action_manager.py",
-      "size": 3135,
-      "sha256": "3cf33d21f02c6e60b6da2ae83ff133b1110c51fc584d5af56e2c8866979303a2"
+      "size": 2925,
+      "sha256": "78a31ad0663a0a40e71780d730f8ca775b2874171cdbcf1a676dd9aea72dee12"
     },
     {
       "path": "baselines/atena/A3C_2_actors/critic.py",
-      "size": 2237,
-      "sha256": "59de24c7234c3b74210522f20d8555a87d8c9d8a10d8663b279417d1d4d5ab93"
+      "size": 1873,
+      "sha256": "cce13a4da3e1454eb66058ccf773bb3fbdf7931424d3bb7ef2d8d624dc1c1c31"
     },
     {
       "path": "baselines/atena/A3C_2_actors/operation_actor.py",
-      "size": 2948,
-      "sha256": "ff6d6faa3bc9c42cc3576e97f0194a299604a68f9248d8a49071d48c730023b0"
+      "size": 2244,
+      "sha256": "5aa6454e872b1bec51f815072b99f4f57197702f5f1d395ac2693c46f14d0e26"
     },
     {
       "path": "baselines/atena/A3C_2_actors/pipeline_environment.py",
-      "size": 12964,
-      "sha256": "284feee29e95ba26e47835805657c9d25374372649654e411fc6dd32b82b2299"
+      "size": 11871,
+      "sha256": "89f5966634d8005b539994933994546bda95230df6ba125062fa7f6c76af1fb0"
     },
     {
       "path": "baselines/atena/A3C_2_actors/set_actor.py",
-      "size": 2904,
-      "sha256": "f0538185390b86527702cfc4e0d6a166256071de8f5200fe7850886f4d3ed89c"
+      "size": 2218,
+      "sha256": "682d43aefed40601f0b44f05856a1a4dfecad78462135adb1cc360c61d1eeee5"
     },
     {
       "path": "baselines/atena/A3C_2_actors/state_encoder.py",
-      "size": 6442,
-      "sha256": "0b3c32eaa92b5adc646a1f10064ecfbbb7be1ef91ce89b194005217ce4d1faf6"
+      "size": 6112,
+      "sha256": "dc2710c3602db9eab294de4c61f8b2a6a4f6dce7b0f2cef32ba983e789716267"
     },
     {
       "path": "baselines/atena/A3C_2_actors/target_set_generator.py",
@@ -904,49 +854,49 @@
       "sha256": "2bea390c939454ec1b324d0603b23404da3725fc3f8966739485598b980efcaa"
     },
     {
-      "path": "baselines/atena/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "path": "baselines/atena_no_ext/A3C_2_actors/A3C.py",
-      "size": 24511,
-      "sha256": "4a048be544d0c1378aa6e650139d5d2ae1174f07b57f57aea9b5a5a1ad06cb0f"
+      "path": "baselines/atena_no_ext/__init__.py",
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/__init__.py",
-      "size": 21,
-      "sha256": "9ceb0231d8f6e8d5c350ac30446d5b32959375c87120aff5a9658d1122f93144"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "baselines/atena_no_ext/A3C_2_actors/A3C.py",
+      "size": 23452,
+      "sha256": "ca0883c2eded35971b870e6e22a0f5f83605da71398a7c27deff461910a6be56"
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/action_manager.py",
-      "size": 3135,
-      "sha256": "3cf33d21f02c6e60b6da2ae83ff133b1110c51fc584d5af56e2c8866979303a2"
+      "size": 2925,
+      "sha256": "78a31ad0663a0a40e71780d730f8ca775b2874171cdbcf1a676dd9aea72dee12"
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/critic.py",
-      "size": 2237,
-      "sha256": "59de24c7234c3b74210522f20d8555a87d8c9d8a10d8663b279417d1d4d5ab93"
+      "size": 1873,
+      "sha256": "cce13a4da3e1454eb66058ccf773bb3fbdf7931424d3bb7ef2d8d624dc1c1c31"
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/operation_actor.py",
-      "size": 2948,
-      "sha256": "ff6d6faa3bc9c42cc3576e97f0194a299604a68f9248d8a49071d48c730023b0"
+      "size": 2244,
+      "sha256": "5aa6454e872b1bec51f815072b99f4f57197702f5f1d395ac2693c46f14d0e26"
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/pipeline_environment.py",
-      "size": 12964,
-      "sha256": "284feee29e95ba26e47835805657c9d25374372649654e411fc6dd32b82b2299"
+      "size": 11871,
+      "sha256": "89f5966634d8005b539994933994546bda95230df6ba125062fa7f6c76af1fb0"
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/set_actor.py",
-      "size": 2904,
-      "sha256": "f0538185390b86527702cfc4e0d6a166256071de8f5200fe7850886f4d3ed89c"
+      "size": 2218,
+      "sha256": "682d43aefed40601f0b44f05856a1a4dfecad78462135adb1cc360c61d1eeee5"
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/state_encoder.py",
-      "size": 6442,
-      "sha256": "0b3c32eaa92b5adc646a1f10064ecfbbb7be1ef91ce89b194005217ce4d1faf6"
+      "size": 6112,
+      "sha256": "dc2710c3602db9eab294de4c61f8b2a6a4f6dce7b0f2cef32ba983e789716267"
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/target_set_generator.py",
@@ -954,49 +904,49 @@
       "sha256": "2bea390c939454ec1b324d0603b23404da3725fc3f8966739485598b980efcaa"
     },
     {
-      "path": "baselines/atena_no_ext/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "path": "baselines/dora/A3C_2_actors/A3C.py",
-      "size": 23760,
-      "sha256": "ab421f748bcd88a0065abbc884f9e662a61be2a6fc374fee6c1a8cdc5be49c42"
+      "path": "baselines/dora/__init__.py",
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "baselines/dora/A3C_2_actors/__init__.py",
-      "size": 21,
-      "sha256": "9ceb0231d8f6e8d5c350ac30446d5b32959375c87120aff5a9658d1122f93144"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "baselines/dora/A3C_2_actors/A3C.py",
+      "size": 22874,
+      "sha256": "c85cdf122d788f8779e0f54a41502a8a799b4529f7a00df6494f91dae4e2e762"
     },
     {
       "path": "baselines/dora/A3C_2_actors/action_manager.py",
-      "size": 3135,
-      "sha256": "3cf33d21f02c6e60b6da2ae83ff133b1110c51fc584d5af56e2c8866979303a2"
+      "size": 2925,
+      "sha256": "78a31ad0663a0a40e71780d730f8ca775b2874171cdbcf1a676dd9aea72dee12"
     },
     {
       "path": "baselines/dora/A3C_2_actors/critic.py",
-      "size": 2237,
-      "sha256": "59de24c7234c3b74210522f20d8555a87d8c9d8a10d8663b279417d1d4d5ab93"
+      "size": 1873,
+      "sha256": "cce13a4da3e1454eb66058ccf773bb3fbdf7931424d3bb7ef2d8d624dc1c1c31"
     },
     {
       "path": "baselines/dora/A3C_2_actors/operation_actor.py",
-      "size": 2948,
-      "sha256": "ff6d6faa3bc9c42cc3576e97f0194a299604a68f9248d8a49071d48c730023b0"
+      "size": 2244,
+      "sha256": "5aa6454e872b1bec51f815072b99f4f57197702f5f1d395ac2693c46f14d0e26"
     },
     {
       "path": "baselines/dora/A3C_2_actors/pipeline_environment.py",
-      "size": 12964,
-      "sha256": "284feee29e95ba26e47835805657c9d25374372649654e411fc6dd32b82b2299"
+      "size": 11871,
+      "sha256": "89f5966634d8005b539994933994546bda95230df6ba125062fa7f6c76af1fb0"
     },
     {
       "path": "baselines/dora/A3C_2_actors/set_actor.py",
-      "size": 2904,
-      "sha256": "f0538185390b86527702cfc4e0d6a166256071de8f5200fe7850886f4d3ed89c"
+      "size": 2218,
+      "sha256": "682d43aefed40601f0b44f05856a1a4dfecad78462135adb1cc360c61d1eeee5"
     },
     {
       "path": "baselines/dora/A3C_2_actors/state_encoder.py",
-      "size": 6442,
-      "sha256": "0b3c32eaa92b5adc646a1f10064ecfbbb7be1ef91ce89b194005217ce4d1faf6"
+      "size": 6112,
+      "sha256": "dc2710c3602db9eab294de4c61f8b2a6a4f6dce7b0f2cef32ba983e789716267"
     },
     {
       "path": "baselines/dora/A3C_2_actors/target_set_generator.py",
@@ -1004,34 +954,29 @@
       "sha256": "2bea390c939454ec1b324d0603b23404da3725fc3f8966739485598b980efcaa"
     },
     {
-      "path": "baselines/dora/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
       "path": "baselines/greedy_eda/__init__.py",
-      "size": 227,
-      "sha256": "df2067ded92888563b01e7bb017787d7d2a456c65249d9bc9994b95b69b1e7e6"
+      "size": 186,
+      "sha256": "001876c55a0e3a7473e3cc80b7ec12c7b287afe8ddace4e210b5099ce3877826"
     },
     {
       "path": "baselines/greedy_eda/covertype.py",
-      "size": 2464,
-      "sha256": "78e63522ee9c6c8e91622613c5702728a78963dfeb5d6c96d944dc22342e5293"
+      "size": 2250,
+      "sha256": "e581d63fd8d284ca212323274192186e8c811d49195adc81ffb474b62f7da0aa"
     },
     {
       "path": "baselines/greedy_eda/galaxy.py",
-      "size": 15316,
-      "sha256": "be6ec3449623d6012435cdd16695a78d9e2f48f84ffeea73bd43ea51f60471e9"
+      "size": 15255,
+      "sha256": "1770aa5c790ea54c2904bf0ab5368993e54b157e319bb34639a22517b131b30f"
     },
     {
       "path": "baselines/greedy_eda/policy.py",
-      "size": 4443,
-      "sha256": "e5f7ea8b5b5ee21fd1c490700383ef1389a4158755298671a617b79bd744e929"
+      "size": 4308,
+      "sha256": "636ea5eef1480b311379d276a5c5931f9c5fe408bf83010a81066550322f4cb4"
     },
     {
-      "path": "baselines/pure_a3c/A3C_2_actors/A3C.py",
-      "size": 25152,
-      "sha256": "0fbd5fd80f5f32b767fa53d7ce4314e4b454524922fd9e8dd54c20d3f95193f3"
+      "path": "baselines/pure_a3c/__init__.py",
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "baselines/pure_a3c/A3C_2_actors/__init__.py",
@@ -1039,9 +984,9 @@
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
-      "path": "baselines/pure_a3c/__init__.py",
-      "size": 1,
-      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+      "path": "baselines/pure_a3c/A3C_2_actors/A3C.py",
+      "size": 25152,
+      "sha256": "0fbd5fd80f5f32b767fa53d7ce4314e4b454524922fd9e8dd54c20d3f95193f3"
     },
     {
       "path": "baselines/random/random_baseline.py",
@@ -1065,13 +1010,13 @@
     },
     {
       "path": "covertype-exploration/baselines/greedy_eda/__init__.py",
-      "size": 70,
-      "sha256": "ba07d75138b9fe23bb7052fb5cb488590f62a95ba2cb4111c0c0700301421a36"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "covertype-exploration/baselines/greedy_eda/run.py",
-      "size": 21612,
-      "sha256": "2d54d03b5363a59009c08e16ebffcfb83bc42ea498c214d864ef3cc7355acb48"
+      "size": 21541,
+      "sha256": "da5cb354ee17b34fb1a314a42414aa6983fdbcb421ed14aef3c86757c29e5144"
     },
     {
       "path": "covertype-exploration/baselines/mira/run.py",
@@ -1090,8 +1035,8 @@
     },
     {
       "path": "covertype-exploration/baselines/pure_a3c/run.py",
-      "size": 1094,
-      "sha256": "e59f52ca728cb3fa3930655506dbd4d63c647faf29e8544c31f14bfecbef2c22"
+      "size": 1014,
+      "sha256": "31a3cea30a4049e5e9eaa3b4f84684200ab9c57ac67966b8445e520512f959c4"
     },
     {
       "path": "covertype-exploration/baselines/random/__init__.py",
@@ -1115,18 +1060,18 @@
     },
     {
       "path": "covertype-exploration/covertype_rl/actions.py",
-      "size": 2294,
-      "sha256": "35f7a8a72f9ff2a8dde825b7bc45d1fba9b14af72ee785bb180a52f6805e2d64"
+      "size": 2150,
+      "sha256": "9d50c41d5c5dff6b37013123b978a54ab61895b764f82f99264f994451ed4840"
     },
     {
       "path": "covertype-exploration/covertype_rl/cache_contract.py",
-      "size": 10887,
-      "sha256": "e3e4f51ebd543f73524124e4c5c899b7b46e8fc6c02b010f1f837c825b30923e"
+      "size": 10027,
+      "sha256": "ed5e08bbd1291149545bc10a764eabdc00f95e16442e506dce8394b4410a573b"
     },
     {
       "path": "covertype-exploration/covertype_rl/candidates.py",
-      "size": 4147,
-      "sha256": "23f7a3c729ff0112fccb9993a0e8604e44b33aec6eae2655612b6f9d53a17c27"
+      "size": 4082,
+      "sha256": "53df0e66854116e590426a105f4fdffe0eb5a816dd323c9d407f66c287b65553"
     },
     {
       "path": "covertype-exploration/covertype_rl/data.py",
@@ -1135,38 +1080,38 @@
     },
     {
       "path": "covertype-exploration/covertype_rl/environment.py",
-      "size": 21216,
-      "sha256": "99019096ca0b68afee1c872cc3c08f4d4d6dbf5e536c799181b9b67fbbc54443"
+      "size": 20984,
+      "sha256": "126275000fb920aae48d4ea31fb351ac311c8788a9a2e3294be064eff0f86bcb"
     },
     {
       "path": "covertype-exploration/covertype_rl/fixed_sets.py",
-      "size": 16946,
-      "sha256": "aba6e3b0ddb8b50feba886f92ff44c9d70a9176b1eaa9061654020bd15b954d4"
+      "size": 16727,
+      "sha256": "6e26a86357af96af64a047af5623556df2337e33811fbd54741ea33e904350d2"
     },
     {
       "path": "covertype-exploration/covertype_rl/full_a3c.py",
-      "size": 68562,
-      "sha256": "fbe7b2b4b66e9c5415d5b4455a3c95a371f24a57e8295acabe21a958555a8c28"
+      "size": 62170,
+      "sha256": "34264f18a9f3d9bd0a310835a2f63901cc1376addd4388831464540e6691bcad"
     },
     {
       "path": "covertype-exploration/covertype_rl/greedy_preprocessing.py",
-      "size": 3724,
-      "sha256": "6f9c74ffea50ea42e5d16661c2015279aca6c3e9a51952e12a7cff334aa802a9"
+      "size": 3491,
+      "sha256": "170a1bc8f71e2f20b0805f0ab18406c79daa188cf354ef90acc109e9bb0e9c03"
     },
     {
       "path": "covertype-exploration/covertype_rl/mira.py",
-      "size": 199,
-      "sha256": "9acb6b59aef42018f82771f4e76e18199923a0cb56002116c9ad00399451f01a"
+      "size": 145,
+      "sha256": "498ee9a91fa0f721f8e84137cfc68252dbd5f1a4922c70c13358af7bda58bfd6"
     },
     {
       "path": "covertype-exploration/covertype_rl/targets.py",
-      "size": 6443,
-      "sha256": "d57517c8d316e61396e151f5580579893da56a436cdd52be4f4116454992be67"
+      "size": 6050,
+      "sha256": "0d9acb8d073d294b269180c7bee5c8fb2a06ec0746f20900a73fb13ce2b9f0e8"
     },
     {
       "path": "covertype-exploration/covertype_rl/template_targets.py",
-      "size": 6149,
-      "sha256": "3c5beb250c67561d6c03a3e8740063393f96530f1778c20d2e8a79394ba072fd"
+      "size": 5693,
+      "sha256": "584aae7da20232f3a05754b9f92979cd91d2e100248cd9711de41d49cb5ab464"
     },
     {
       "path": "covertype-exploration/preprocessed/by_distribution_path100k_seed1/constraints.npy",
@@ -1205,8 +1150,8 @@
     },
     {
       "path": "covertype-exploration/preprocessed/by_distribution_path100k_seed1/validation.json",
-      "size": 1933,
-      "sha256": "975584deb1f5f20f7caad5895eb38865872789738f99273f0379885fd89fdf5b"
+      "size": 1935,
+      "sha256": "36707980617d4f1f8ba6fcbd0996fcf6bdb18b4cc40581da595c2baa74104488"
     },
     {
       "path": "covertype-exploration/preprocessed/by_distribution_path100k_seed2/constraints.npy",
@@ -1245,8 +1190,8 @@
     },
     {
       "path": "covertype-exploration/preprocessed/by_distribution_path100k_seed2/validation.json",
-      "size": 1933,
-      "sha256": "66d96cb84a430dec420c3aa9165b60ffcf7e058deed15aee48b0e19182a713e6"
+      "size": 1935,
+      "sha256": "7c89e333c960bcb08cf3f9ed04f61992f622e1900a91c0f36a16c8b652e3e93f"
     },
     {
       "path": "covertype-exploration/preprocessed/by_distribution_path100k_seed3/constraints.npy",
@@ -1285,8 +1230,8 @@
     },
     {
       "path": "covertype-exploration/preprocessed/by_distribution_path100k_seed3/validation.json",
-      "size": 1933,
-      "sha256": "6f4d697387fbc388fe876943d4269665f5b38547ef15fbfde730a6a848aa9417"
+      "size": 1935,
+      "sha256": "a1e772d72a14fe64181141a42193eb677fd937ff01fbde34120553a49b153ca5"
     },
     {
       "path": "covertype-exploration/run_full_a3c.py",
@@ -1309,9 +1254,9 @@
       "sha256": "0bc84dda20e8a863e51994b9be2495685478d9f6c72d44dc6c5cc742bacf544e"
     },
     {
-      "path": "protocol.json",
-      "size": 2394,
-      "sha256": "87f885b60ab56eeb7c6dd50fecb29a7fbd17f4afc8757af8d3545348c0d93afb"
+      "path": "README.md",
+      "size": 7032,
+      "sha256": "322d7eea868b9a28407c21b45269144acbb908c943bcc0b0e24744264ad4d0df"
     },
     {
       "path": "requirements.txt",
@@ -1320,8 +1265,8 @@
     },
     {
       "path": "revision_support/__init__.py",
-      "size": 63,
-      "sha256": "2014de89d44e2aae51278470e1d424ea505b96bafd90b496b49ae0dc8f9e34ac"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "revision_support/ablation_config.py",
@@ -1330,13 +1275,13 @@
     },
     {
       "path": "revision_support/covertype_defaults.py",
-      "size": 2105,
-      "sha256": "cb8e00ccdd8d26138f9f7b7b7bd91a34bc4d9c64fdde9a40d9bc5a6f99586937"
+      "size": 2025,
+      "sha256": "2a44d458261a6172c3ca3f4862d948674149425e3c735aea6c4c377555435dfe"
     },
     {
       "path": "revision_support/csv_output.py",
-      "size": 858,
-      "sha256": "c0863fb547f7259cae525e0fc82fc4084333de5b524a15718204b3d812114d7d"
+      "size": 798,
+      "sha256": "4c71f630e5f68cddcea024e1cea027093a8354a8e1e3e6222c9f41587500a41c"
     },
     {
       "path": "revision_support/direction_sampling.py",
@@ -1345,143 +1290,143 @@
     },
     {
       "path": "revision_support/exploration_rewards.py",
-      "size": 5588,
-      "sha256": "f09244738cd6719b3472a0a792743cf12f5c4eea9bbaa4ded54ca31980fff4d7"
+      "size": 5118,
+      "sha256": "6cc29319c40e615db5b1ce224d59d25dfcc5a05535fe84218a9df7098fe7a438"
     },
     {
       "path": "revision_support/galaxy_execution.py",
-      "size": 3039,
-      "sha256": "e75b014d615197814503ba1e4c7f51abf89b9feef4ff467753a03ae87904f4b1"
+      "size": 2288,
+      "sha256": "aa0fbdabe079d22f2c4661b6d5b7e9c64c410ecffc4b57b5324267a3e40f9f60"
     },
     {
       "path": "revision_support/galaxy_results.py",
-      "size": 1126,
-      "sha256": "7be64ab46625ab8266e4831e542a80a10d0adbb03863efc0bcdc5845200adf75"
+      "size": 1053,
+      "sha256": "ad114d385057d1398da1be48243d63501cf10a63fed1fc84723765ea64c80cb1"
     },
     {
       "path": "revision_support/galaxy_rewards.py",
-      "size": 1059,
-      "sha256": "5613f4d0be33881e53a5f6cc50f99f57f875935d4fa5c04895c8b775d97d9af9"
+      "size": 963,
+      "sha256": "4ad9b324feb4908e2683f49c6265029289f55991d79668f00a2d7db43fbe01f0"
     },
     {
       "path": "revision_support/inference.py",
-      "size": 607,
-      "sha256": "ae207b7f5f11563199350eb0b3d79c970273bd208fedd4ce197b3839af4ab89f"
+      "size": 528,
+      "sha256": "2a6643cf02660aeee936c4c8b5d7ab133cbac6cf054f028594c7944c93fcac5a"
     },
     {
       "path": "revision_support/mira_core.py",
-      "size": 13619,
-      "sha256": "4c28ba9cbddcbe5b2f40766e21e8836886670f04e9d56f693ff96acaa9ca2e7d"
-    },
-    {
-      "path": "revision_support/mira_descriptors.py",
-      "size": 2920,
-      "sha256": "6c79c0eab4d102a2b0cbfdd5961c7d7f4957ede1ab0ed2a4173884633886ba3e"
+      "size": 13229,
+      "sha256": "be57927deb8decc7078476bd7ee1e48d99c99eebd1f09da7e4643b7bf882ee2a"
     },
     {
       "path": "revision_support/mira_dual.py",
-      "size": 1552,
-      "sha256": "cd28bee07a71fa1391a5c514e03f6efd2ae5c757f3dbb92103d4d7bba7789e3e"
+      "size": 1479,
+      "sha256": "ee9a36d4146f7a64527eb5e1bad2ef7343fb73352237fd4effe2c974f7e7fc64"
     },
     {
       "path": "revision_support/mira_learner.py",
-      "size": 4858,
-      "sha256": "509a40589f9080d659448fc56f77c9a148a6eb2252c2a0a45212de253c298ace"
+      "size": 4786,
+      "sha256": "6daa027f6fedafa44ba4ded23badd61b5004476f6cbdce3ca2b9432cfb133f75"
     },
     {
       "path": "revision_support/mira_task.py",
-      "size": 727,
-      "sha256": "aefaa60756c92bf2f6f8a765131d15c490f73c364e8df0ca8b520cd553011b5e"
+      "size": 480,
+      "sha256": "0afc680003b77fb8945e895fe2c54a73b76b18807c1cb60f9c9f33bc5c17d3c4"
     },
     {
       "path": "revision_support/pca.py",
-      "size": 1731,
-      "sha256": "2c601d58980fbd1c71dac805e9b6c244507cbef0d3c5b98cd83da4e6d97c46b1"
+      "size": 1644,
+      "sha256": "223770cb6fe6d73bfd522d50feeed425012989b47c3375da3f24cbf6088845e6"
     },
     {
       "path": "revision_support/pca_training.py",
-      "size": 7527,
-      "sha256": "8811022155d964f72b54a290aad3f5ea6a8d8ef5df7ea4f85085f470b5e63fec"
+      "size": 6555,
+      "sha256": "2d8e4f9b52809ae28f0ed3390cfabae8dcdabf99bea2f50f19143c13cc627c1f"
     },
     {
       "path": "revision_support/query_aggregate.py",
-      "size": 4670,
-      "sha256": "71326e4e75d216567fdaa8b5442c6fdfa0cf41781d56a07a5bbd2c5a15d8861d"
+      "size": 4588,
+      "sha256": "e1e9402b8df489e1a057fd9f43c15ab933fb78c5c72648acce87f92d0cb8dc3a"
     },
     {
       "path": "revision_support/release_checks.py",
-      "size": 6527,
-      "sha256": "1ae7c1927a2b17648183e235bcecc3d4030bd44e623039d68f301778d5c0936a"
+      "size": 6248,
+      "sha256": "a10a851c6a4c6f30f65096b3d3676516394b3cd8405624b5d634424b839e3619"
     },
     {
       "path": "revision_support/release_config.py",
-      "size": 122,
-      "sha256": "b41cc120033d9b7993a40c480731d37c01cf897de508da661ce75dde83446c00"
+      "size": 53,
+      "sha256": "28528a6d000a300d66aae4719616e7fea97dad706afbd8f9f9641b6a182351cc"
     },
     {
       "path": "revision_support/representations.py",
-      "size": 4373,
-      "sha256": "964cc854857c23444539423c8683d1526aaf7d884fc1d5563c813163aa1e7a7c"
+      "size": 4069,
+      "sha256": "0195aa8bdcac9a59d26f331eec1e65276293b01873ff059f5b679fe944c2ac2d"
     },
     {
       "path": "revision_support/resources.py",
-      "size": 5186,
-      "sha256": "4df245026157810a5a880db5347fa757950ea1dfaca3aa8c5dfbc246f81ebdaf"
+      "size": 4992,
+      "sha256": "dde1e2d46ffc1607f88a6de85f8d19ac636763607b8291f16390533c1339504f"
     },
     {
       "path": "revision_support/rnd.py",
-      "size": 3884,
-      "sha256": "877db569407fa768af15e86d415843882446b10725682f60ae1a25bac8cbb37d"
+      "size": 3509,
+      "sha256": "de76d0bb89a9a10e6913a99eddb61e82a0f3b7d1a0f7bde3f958496f23474e46"
     },
     {
       "path": "revision_support/training_runtime.py",
-      "size": 518,
-      "sha256": "b00be58273eaad233ffb56e12acda02e7bfb45ace69d21c09590b4998b78f843"
+      "size": 446,
+      "sha256": "38ad59916da009d9497ab8891b817e014c13c209306bcf29af35d084c5d0a804"
     },
     {
-      "path": "rl/A3C_2_actors/A3C.py",
-      "size": 38623,
-      "sha256": "211c1c5508c830b5bc181ea00b0c412cab1d9fc2885aa584fe9858f24d287790"
+      "path": "rl/__init__.py",
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
     },
     {
       "path": "rl/A3C_2_actors/__init__.py",
-      "size": 21,
-      "sha256": "9ceb0231d8f6e8d5c350ac30446d5b32959375c87120aff5a9658d1122f93144"
+      "size": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "rl/A3C_2_actors/A3C.py",
+      "size": 37901,
+      "sha256": "6429624cddbfcd61e5a415444d01abdb8d4520170d6bc1dc86992ed3ac975ba9"
     },
     {
       "path": "rl/A3C_2_actors/action_manager.py",
-      "size": 3135,
-      "sha256": "3cf33d21f02c6e60b6da2ae83ff133b1110c51fc584d5af56e2c8866979303a2"
+      "size": 2925,
+      "sha256": "78a31ad0663a0a40e71780d730f8ca775b2874171cdbcf1a676dd9aea72dee12"
     },
     {
       "path": "rl/A3C_2_actors/critic.py",
-      "size": 2237,
-      "sha256": "59de24c7234c3b74210522f20d8555a87d8c9d8a10d8663b279417d1d4d5ab93"
+      "size": 1873,
+      "sha256": "cce13a4da3e1454eb66058ccf773bb3fbdf7931424d3bb7ef2d8d624dc1c1c31"
     },
     {
       "path": "rl/A3C_2_actors/mira.py",
-      "size": 199,
-      "sha256": "9acb6b59aef42018f82771f4e76e18199923a0cb56002116c9ad00399451f01a"
+      "size": 145,
+      "sha256": "498ee9a91fa0f721f8e84137cfc68252dbd5f1a4922c70c13358af7bda58bfd6"
     },
     {
       "path": "rl/A3C_2_actors/operation_actor.py",
-      "size": 2948,
-      "sha256": "ff6d6faa3bc9c42cc3576e97f0194a299604a68f9248d8a49071d48c730023b0"
+      "size": 2244,
+      "sha256": "5aa6454e872b1bec51f815072b99f4f57197702f5f1d395ac2693c46f14d0e26"
     },
     {
       "path": "rl/A3C_2_actors/pipeline_environment.py",
-      "size": 14466,
-      "sha256": "05d33fda0be1ed32536516b80556cea8396e0f68e7cfc4203263767cbb59a752"
+      "size": 12482,
+      "sha256": "e1915b4ee85e4e71d0a9f68e7a901941fded4372e71558c921ee8f9afbbbcb3a"
     },
     {
       "path": "rl/A3C_2_actors/set_actor.py",
-      "size": 2904,
-      "sha256": "f0538185390b86527702cfc4e0d6a166256071de8f5200fe7850886f4d3ed89c"
+      "size": 2218,
+      "sha256": "682d43aefed40601f0b44f05856a1a4dfecad78462135adb1cc360c61d1eeee5"
     },
     {
       "path": "rl/A3C_2_actors/state_encoder.py",
-      "size": 7039,
-      "sha256": "d9463366e5efd5b6bec27b04bbc8d88d6ed62e27d2a72e27f53767748288d159"
+      "size": 6417,
+      "sha256": "0c458e8cefb25154891fe08c2e2bfaed6cebca1b18312d77179078a94ec8b898"
     },
     {
       "path": "rl/A3C_2_actors/target_set_generator.py",
@@ -1489,19 +1434,9 @@
       "sha256": "2bea390c939454ec1b324d0603b23404da3725fc3f8966739485598b980efcaa"
     },
     {
-      "path": "rl/__init__.py",
-      "size": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
       "path": "rl/targets/fixed_seed_1.json",
       "size": 297640,
       "sha256": "7655e963b699cbfcd1eca7219052d74eb71c2717143a4d6bc42e53ee58ffd03c"
-    },
-    {
-      "path": "rl/targets/fixed_seed_1.metadata.json",
-      "size": 186,
-      "sha256": "a415d4ba7dd2d8a35e8b02339c9ef75c3ce316e07b6f146c2ae57a679a1e7519"
     },
     {
       "path": "rl/targets/fixed_seed_2.json",
@@ -1509,43 +1444,64 @@
       "sha256": "98e76d3758ae546596e357fd348c439dfcdfb548c0fc577791c7f06721814b72"
     },
     {
-      "path": "rl/targets/fixed_seed_2.metadata.json",
-      "size": 186,
-      "sha256": "85c629d5314276d1b94495829a9311c177457e796766783827a607a8cbddb92f"
-    },
-    {
       "path": "rl/targets/fixed_seed_3.json",
       "size": 296848,
       "sha256": "e3c3cb3f19482b4cc69d0fa1aa2716b06865dec93a027ad95071e95d86b9b3f5"
     },
     {
-      "path": "rl/targets/fixed_seed_3.metadata.json",
-      "size": 186,
-      "sha256": "f07a1b8a12bffab81826074fd11d591e0ccbafb461847d69d32f8c2cc0f023b3"
+      "path": "RL-launcher-atena-no-ext.py",
+      "size": 858,
+      "sha256": "49ae0d963ede08d4a90b3d387797dff0eefdaddb9ccbe8c0b679387b50fdc8ae"
+    },
+    {
+      "path": "RL-launcher-atena.py",
+      "size": 904,
+      "sha256": "1c7cd8ea92096c426f306c68ee881ee3ba1db839114bfc0c9601ee0ee7558b9d"
+    },
+    {
+      "path": "RL-launcher-dora.py",
+      "size": 903,
+      "sha256": "8eae80eaa9ebfc3fc0124be8460d8f222f59b27d6a49f2dd49c4087f40cbabd4"
+    },
+    {
+      "path": "RL-launcher-greedy-eda.py",
+      "size": 211,
+      "sha256": "a0edee4cc23466e1e9827d7f7bb724a220691b799b9efe9d44fb04947bf0599d"
+    },
+    {
+      "path": "RL-launcher-pure-a3c.py",
+      "size": 984,
+      "sha256": "629d586456e5492bcb215d050447983c80cf5476cc238426f9ddca37eb18d555"
+    },
+    {
+      "path": "RL-launcher-random-baseline.py",
+      "size": 216,
+      "sha256": "0494873f4b975536945f1b089bd1d387f55bb4d7c9bbdc0d8f8c3d6d3dad6719"
+    },
+    {
+      "path": "RL-launcher.py",
+      "size": 749,
+      "sha256": "34dfad89a35f83bb0c08e02d63f8825d9899c6eb0f4a5579ad7ac3362d20a14f"
     },
     {
       "path": "run.py",
-      "size": 9184,
-      "sha256": "2984d9a2a43a914aa31c9d0ef87b4fc40e818c6525cacab3da835b2984e160f5"
+      "size": 8868,
+      "sha256": "ba05f68b3af37b6365746b0a9ba777de14e4e0e8d52b232ee0180f9bcc93c193"
     },
     {
       "path": "scripts/measure_experiment.py",
-      "size": 6097,
-      "sha256": "417de27c0a60e5542e33fa18fc84e72f2f5f12357e1af666ff5ead9c93d600d3"
+      "size": 5442,
+      "sha256": "700df26943e316f4ebbe68e67a9d0c41b29eee748e5b98df556a81f1d7cb067c"
+    },
+    {
+      "path": "tests/test_training_protocol.py",
+      "size": 8608,
+      "sha256": "3dbeac70b9e423a2b3282037b9abc721dcc7d3082304490c77d93c1e9d7e9ad8"
     },
     {
       "path": "verify.py",
-      "size": 8180,
-      "sha256": "92f062342010b5615cb3279c5ab64029a2bf9f2750b3bbdc60c085554b7ae5be"
+      "size": 8178,
+      "sha256": "cfb7edc587f2b867afdf6f36c52daf7b064fedd6a2def3a719c223e8fd4e1f8a"
     }
-  ],
-  "distribution": {
-    "format": "gzip split into 80 MiB parts",
-    "parts": [
-      "app/data/sdss/galaxies.csv.gz.part00",
-      "app/data/sdss/galaxies.csv.gz.part01"
-    ],
-    "restored_file": "app/data/sdss/galaxies.csv",
-    "note": "Restore the CSV as described in README.md before running verify.py. The manifest validates both the archive parts and the restored CSV."
-  }
+  ]
 }

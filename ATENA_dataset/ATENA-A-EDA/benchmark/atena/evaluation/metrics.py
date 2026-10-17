@@ -84,7 +84,7 @@ class AbstractMetric(ABC):
     ) -> List[Optional[str]]:
         back_token = '[back]'
 
-        # Get displays from actions
+
         end_of_simulation_state = ActionsSimulator.get_end_of_simulation_state(
             schema_name,
             dataset_name,
@@ -92,17 +92,17 @@ class AbstractMetric(ABC):
         )
         displays_history = end_of_simulation_state.displays_history
 
-        # Make displays_history and actions equal in length
+
         actions = [None] + actions_lst
 
         tokens = []
         for disp, action in zip(displays_history, actions):
             disp = str(disp)
-            # Create token
+
             if disp not in cls.displays_token_map:
                 cls.displays_token_map[disp] = len(cls.displays_token_map)
 
-            # Add token to list
+
             action_type = None if action is None else action.action_type
             if action_type is ActionType.BACK:
                 tokens.append(back_token)
@@ -115,14 +115,14 @@ class AbstractMetric(ABC):
     def tokens_references_candidate_pairs(self) -> List[TokensReferencesCandidatePair]:
         pairs = []
         for eval_instance in self.eval_instances:
-            # References tokens
+
             references_tokens = []
             for actions_lst in eval_instance.references_actions:
                 tokens = self.get_display_tokens_from_actions(
                     eval_instance.dataset_meta.schema, eval_instance.dataset_meta.dataset_name, actions_lst)
                 references_tokens.append(tokens)
 
-            # Candidate tokens
+
             candidate_tokens = self.get_display_tokens_from_actions(
                 eval_instance.dataset_meta.schema, eval_instance.dataset_meta.dataset_name, eval_instance.actions_lst)
 
@@ -132,9 +132,7 @@ class AbstractMetric(ABC):
 
     @abstractmethod
     def compute(self) -> float:
-        """
-        Computes the value of this metric
-        """
+
         raise NotImplementedError
 
 
@@ -186,7 +184,7 @@ class NormalizedDisplaysEdaSimMetric(AbstractMetric):
                 return_min_ops=True,
             )
 
-            # Tree Edit Distance is a distance measure and we would like it to be a similarity measure
+
             eda_sim_scores.append(1 - min_ted)
 
         return np.mean(eda_sim_scores, axis=0).item()

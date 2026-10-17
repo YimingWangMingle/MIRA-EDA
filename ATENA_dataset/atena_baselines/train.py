@@ -320,9 +320,6 @@ def _masked_probs(probs, mask):
     return probs / total
 
 
-
-
-
 def _merge_rollouts(rollouts):
     keys = (
         "states",

@@ -20,13 +20,13 @@ from revision_support.resources import flush_events
 if str(BENCHMARK_DIR) not in sys.path:
     sys.path.insert(0, str(BENCHMARK_DIR))
 
-from atena.evaluation.distance import display_distance  # noqa: E402
+from atena.evaluation.distance import display_distance
 sys.path.insert(0, str(ROOT_DIR))
 from atena_common.task_reward import TaskRewardMixin, combine_task_reward
 from atena_common.costs import QueryCosts
 from atena_common.simulator import CountedSimulator
 
-from atena.simulation.actions import (  # noqa: E402
+from atena.simulation.actions import (
     ActionType,
     AggregationFunction,
     BackAction,
@@ -34,14 +34,14 @@ from atena.simulation.actions import (  # noqa: E402
     FilterOperator,
     GroupAction,
 )
-from atena.simulation.dataset import (  # noqa: E402
+from atena.simulation.dataset import (
     CyberDatasetName,
     Dataset,
     DatasetMeta,
     FlightsDatasetName,
     SchemaName,
 )
-from atena.simulation.tokenization import tokenize_column  # noqa: E402
+from atena.simulation.tokenization import tokenize_column
 
 
 def dataset_enum(schema: str, dataset_number: int):
@@ -54,7 +54,7 @@ def dataset_enum(schema: str, dataset_number: int):
 
 
 class AtenaActionSpace:
-    """Finite action index wrapper over ATENA's parameterized actions."""
+
 
     def __init__(
         self,
@@ -72,7 +72,7 @@ class AtenaActionSpace:
             tokens = tokenize_column(self.dataset.dataset_df, column)
             tokens = sorted(tokens, key=lambda value: str(value))
             if max_terms_per_column > 0:
-                # Follow ATENA's bounded filter-term spirit: keep frequent tokens first.
+
                 counts = self.dataset.dataset_df[column].astype(str).value_counts(dropna=False)
                 tokens = sorted(tokens, key=lambda value: (-int(counts.get(str(value), 0)), str(value)))
                 tokens = tokens[: int(max_terms_per_column)]
@@ -106,7 +106,7 @@ class AtenaActionSpace:
 
 
 class AtenaEDAEnv(TaskRewardMixin):
-    """Official ATENA benchmark environment with task rewards for training."""
+
 
     def __init__(
         self,
@@ -413,11 +413,6 @@ class AtenaEDAEnv(TaskRewardMixin):
         if isinstance(action, GroupAction):
             return str(action.grouped_column)
         return ""
-
-
-
-
-
 
 
     def _interestingness(self, step_info):

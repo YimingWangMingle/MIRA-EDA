@@ -47,7 +47,7 @@ class DatasetMeta(object):
     def __init__(self, schema: SchemaName, dataset_name: DatasetName):
         self.schema = schema
 
-        # Validate dataset type
+
         if schema is SchemaName.CYBER:
             assert isinstance(dataset_name, CyberDatasetName)
         elif schema is SchemaName.FLIGHTS:

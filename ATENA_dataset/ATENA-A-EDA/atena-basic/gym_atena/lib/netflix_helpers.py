@@ -17,11 +17,7 @@ from gym_atena.lib.helpers import (
 class Repository(object):
 
     def __init__(self, raw_datasets):
-        """
 
-        Args:
-            raw_datasets(str): path to datasets
-        """
         self.data = []
         self.file_list = os.listdir(raw_datasets)
         self.file_list.sort()
@@ -35,7 +31,7 @@ class Repository(object):
 def create_datasets_repository():
     par_dir = path.dirname(path.dirname(__file__))
     datasets_path = path.join(par_dir, 'netflix/raw_datasets')
-    # Solving printing bug
+
     old_stdout = sys.stdout
     sys.stdout = open(os.devnull, "w")
     datasets_repository = Repository(datasets_path)

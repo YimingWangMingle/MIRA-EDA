@@ -20,12 +20,7 @@ echo "Using Python for official ATENA: ${PYTHON_BIN}"
 "${PYTHON_BIN}" -m venv .venv-official-atena
 source .venv-official-atena/bin/activate
 
-# Official ATENA pins old packages such as gym==0.18.0. New setuptools/pip
-# versions reject their legacy setup metadata, so keep the build stack old.
 python -m pip install --upgrade "pip==21.3.1" "setuptools==57.5.0" "wheel==0.37.1"
-# The official stack mixes TensorFlow 2.5 and Chainer 6 era packages whose
-# metadata conflicts under pip's modern resolver. Legacy resolver matches the
-# historical installation behavior expected by the project.
 pip install \
   "typing_extensions==3.7.4.3" \
   "protobuf==3.20.3" \

@@ -1,8 +1,3 @@
-"""
-This file contains all data with regard to columns in the wide flight delays schema (a big flight schema with
-the columns duplicated)
-"""
-
 base_KEYS = ['flight_id', 'airline', 'origin_airport', 'destination_airport', 'flight_number',
              'delay_reason', 'departure_delay',
              'scheduled_trip_time',
@@ -28,8 +23,8 @@ bsae_KEYS_ANALYST_STR = ['Flight ID', 'Airline', 'Origin Airport', 'Destination 
 KEYS_ANALYST_STR = bsae_KEYS_ANALYST_STR[::] + [key_str + ' 2' for key_str in bsae_KEYS_ANALYST_STR]
 
 assert len(KEYS) == len(KEYS_ANALYST_STR)
-FILTER_COLS = KEYS  # Note: changing this from KEYS require to change other occurrences of KEYS in the codebase
-GROUP_COLS = KEYS  # Note: changing this from KEYS require to change other occurrences of KEYS in the codebase
+FILTER_COLS = KEYS
+GROUP_COLS = KEYS
 
 NUMERIC_KEYS = {}
 AGG_KEYS = ['flight_id', 'flight_id_2']

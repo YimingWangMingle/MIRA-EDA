@@ -1,8 +1,3 @@
-
-"""
-A Counter data structure that does not contains NaN as its keys
-"""
-
 from collections import Counter
 import math
 

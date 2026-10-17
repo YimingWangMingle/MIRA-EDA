@@ -1,4 +1,3 @@
-"""Observational subclass; official simulator implementation stays unchanged."""
 import time
 from atena.simulation.actions_simulator import ActionsSimulator
 from revision_support.resources import query_timer

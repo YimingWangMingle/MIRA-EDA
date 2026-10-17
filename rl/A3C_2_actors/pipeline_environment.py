@@ -19,8 +19,7 @@ from revision_support.galaxy_execution import execute_galaxy_operator
 
 
 class PipelineEnvironment(gym.Env):
-    def __init__(self, pipeline: PipelineWithPrecalculatedSets, mode="simple", target_set_name=None, number_of_examples=3, agentId=-1, episode_steps=50, target_items=None, operators=[], target_seed=None, target_samples_per_file=100, observation_only=False, mira_descriptors=False):
-        self.mira_descriptors = bool(mira_descriptors)
+    def __init__(self, pipeline: PipelineWithPrecalculatedSets, mode="simple", target_set_name=None, number_of_examples=3, agentId=-1, episode_steps=50, target_items=None, operators=[], target_seed=None, target_samples_per_file=100, observation_only=False):
         self.observation_only = bool(observation_only)
         self.pipeline = pipeline
         self.mode = mode
@@ -34,9 +33,7 @@ class PipelineEnvironment(gym.Env):
         self.exploration_dimensions = self.pipeline.exploration_columns
         self.target_set_index = -1
 
-        # ==========================================
-        # 【严格遵照原论文 5.1 节设定】: 加载全量 Scattered Target Set [cite: 326, 327]
-        # ==========================================
+
         if self.target_set_name not in [None, "None"] and target_items is None:
             with open(f"./rl/targets/{self.target_set_name}.json") as f:
                 exact_target_items = set([int(x) for x in json.load(f)])
@@ -45,30 +42,29 @@ class PipelineEnvironment(gym.Env):
                     pipeline, target_items=exact_target_items, target_set_size=2000)
             print(f"Loaded fixed target set '{self.target_set_name}' with {len(exact_target_items)} objects.")
         elif self.mode == "scattered" and target_items is None:
-            # 1. 从 JSON 加载原始目标
+
             raw_17k_targets = TargetSetGenerator.get_diverse_target_set(
                 number_of_samples=self.target_samples_per_file,
                 seed=self.target_seed
             )
 
-            # 2. 【核心修复：强制类型对齐】
-            # 将 JSON 里的元素全部强制转换为 int（因为星系的 objID 在 Pandas 里通常是 int64）
+
             exact_17k_targets = set([int(x) for x in raw_17k_targets])
 
-            # 3. 打印诊断信息（学术防身术：明确告诉我们类型对齐成功了没有）
+
             sample_target = list(exact_17k_targets)[0]
-            # 获取 Pandas 里对应列的数据类型
+
             df_type = pipeline.initial_collection["galaxies.objID"].dtype 
 
             print(f"Loaded STRICT Paper Baseline Target Set with {len(exact_17k_targets)} objects!")
             print(f"[Target Protocol] seed={self.target_seed} samples_per_file={self.target_samples_per_file}")
             print(f"[🔬 Type Diagnostic] Target type: {type(sample_target)} | DataFrame objID type: {df_type}")
 
-            # 4. 传入 StateEncoder
+
             self.target_items = exact_17k_targets
             self.state_encoder = StateEncoder(
-                pipeline, 
-                target_items=exact_17k_targets, 
+                pipeline,
+                target_items=exact_17k_targets,
                 target_set_size=2000
             )
 
@@ -78,26 +74,24 @@ class PipelineEnvironment(gym.Env):
             self.state_encoder = StateEncoder(
                 pipeline, target_items=target_items)
 
-        if self.mira_descriptors:
-            self.state_encoder.enable_mira_descriptor()
         self.action_manager = ActionManager(pipeline, operators=operators)
         self.set_action_space = spaces.Discrete(self.pipeline.discrete_categories_count)
         self.operation_action_space = spaces.Discrete(len(self.action_manager.set_action_types))
 
-        # 状态维度定义 [cite: 303]
+
         self.set_state_dim = self.pipeline.discrete_categories_count * len(self.state_encoder.set_description)
         if self.mode == "by_example":
             self.set_state_dim += len(self.state_encoder.set_description)
-        if self.mira_descriptors:
-            offset = self.set_state_dim
-            self.statistic_indices = [offset+i for i in self.state_encoder.mira_descriptor.statistic_indices]
-            self.set_state_dim += len(self.state_encoder.set_description) + 1
+        region_dim = len(self.state_encoder.set_description)
+        self.statistic_indices = [offset + index
+            for offset in range(0, self.set_state_dim, region_dim)
+            for index in self.state_encoder.statistic_indices]
         self.operation_state_dim = self.set_state_dim + len(self.state_encoder.set_description)
 
         self.reset()
 
     def get_set_state(self):
-        # 接收外部熟悉度奖励与内部三元动机奖励 
+
         encoded_sets, r_ext, r_int_js = self.state_encoder.encode_datasets(
             datasets=self.datasets, parent_dataset=self.input_set,
             get_reward=not self.observation_only)
@@ -107,11 +101,8 @@ class PipelineEnvironment(gym.Env):
         if self.mode == 'by_example':
             state += self.example_state
 
-        # 【加装防火墙】：抹除任何特征计算产生的 NaN 或 Inf
+
         descriptor = state + encoded_sets
-        if self.mira_descriptors:
-            parent, _, _ = self.state_encoder.encode_dataset(self.input_set, get_reward=False, get_interestingness=False)
-            descriptor += parent + [self.step_count / max(self.episode_steps, 1)]
         raw_state_array = np.array(descriptor, dtype=np.float32)
         safe_state_array = np.nan_to_num(raw_state_array, nan=0.0, posinf=0.0, neginf=0.0)
 
@@ -187,14 +178,14 @@ class PipelineEnvironment(gym.Env):
         else:
             dataset = self.datasets[set_index]
 
-        encoded_set, _, _ = self.state_encoder.encode_dataset(dataset, get_reward=not self.mira_descriptors)
+        encoded_set, _, _ = self.state_encoder.encode_dataset(dataset, get_reward=not self.observation_only)
 
         operation_state = np.concatenate([
-            self.set_state, 
+            self.set_state,
             np.array(encoded_set, dtype=np.float32)
         ])
 
-        # 【加装防火墙】：同理，保护 Actor 网络不被毒害
+
         safe_operation_state = np.nan_to_num(operation_state, nan=0.0, posinf=0.0, neginf=0.0)
 
         return safe_operation_state
@@ -212,7 +203,7 @@ class PipelineEnvironment(gym.Env):
         self.state_encoder.reset()
 
         if self.mode == "by_example":
-            # 【修复】：Python 3 采样需显式转换 list [cite: 147]
+
             target_list = list(self.state_encoder.target_items)
             target_set_id = self.systemRandom.sample(target_list, 1)[0]
             example_dataset = self.pipeline.get_dataset(set_id=target_set_id)
@@ -265,19 +256,12 @@ class PipelineEnvironment(gym.Env):
             self.datasets = original_datasets
             self.latest_dataset_state_rows = []
             r_ext, r_int_js = 0.0, 0.0
-            if self.mira_descriptors:
-                # The selected input and budget change even after a legal no-op.
-                self.set_state = self.set_state.copy()
-                parent, _, _ = self.state_encoder.encode_dataset(
-                    self.input_set, get_reward=False, get_interestingness=False)
-                self.set_state[-len(parent)-1:-1] = parent
-                self.set_state[-1] = self.step_count / max(self.episode_steps, 1)
         else:
             result_set_ids = set(map(lambda x: x.set_id, self.datasets))
             self.set_review_counter += len(result_set_ids & self.sets_viewed)
             self.sets_viewed.update(result_set_ids)
 
-            # 计算双重奖励反馈 [cite: 75, 145]
+
             self.set_state, r_ext, r_int_js = self.get_set_state()
 
         if self.observation_only:
@@ -298,7 +282,7 @@ class PipelineEnvironment(gym.Env):
         if returned_datasets:
             self._record_exploration_step(r_ext, r_int_js, set_action_array, set_index, operation_action)
         else:
-            # Log the attempted step without re-counting old results as visited.
+
             self.exploration_trace_rows.append({
                 "agent_id": int(self.agentId), "step": int(self.step_count),
                 "set_id": -1, "step_extrinsic_reward": 0.0,

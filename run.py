@@ -1,4 +1,3 @@
-"""Run the fixed Galaxy/Covertype protocol from this standalone folder."""
 import argparse
 import csv
 import json
@@ -41,8 +40,8 @@ def build_jobs(root=ROOT, datasets=DATASETS, methods=METHODS, seeds=(1, 2, 3), s
                         greedy_eda='RL-launcher-greedy-eda.py', random='RL-launcher-random-baseline.py')
                     command = [sys.executable, str(root/launchers[baseline])] + common
                     command += ['--mode', 'scattered', '--target_seed', str(seed)]
-                    # Preserve the existing RNG conventions; three target seeds
-                    # are different tasks, not three repeats of one target task.
+
+
                     if baseline not in ('dora', 'atena', 'atena_no_ext'):
                         command += ['--seed', str(seed)]
                     if baseline in ('random', 'greedy_eda'):
@@ -137,7 +136,7 @@ def main():
         directory, cost = Path(job['directory']), Path(job['measurement_dir'])
         if directory.exists() or cost.exists() or (ROOT/'saved_models'/job['name']).exists():
             raise FileExistsError('Choose a fresh output directory; existing run is preserved: ' + job['name'])
-        # Some original non-learning runners create files directly under a prefix.
+
         directory.parent.mkdir(parents=True, exist_ok=True)
         print('START ' + job['name'], flush=True)
         subprocess.run([sys.executable, str(ROOT/'scripts/measure_experiment.py'), '--output', str(cost),

@@ -1,5 +1,3 @@
-"""Count-balanced, target-blind candidate selection for Covertype."""
-
 from dataclasses import dataclass, field
 from typing import Dict
 
@@ -10,7 +8,7 @@ from .policy import GreedySelection, score_candidates
 
 @dataclass
 class WorkerExplorationMemory:
-    """Worker-local set visit counts that persist across episodes."""
+
 
     set_visit_counts: Dict[int, int] = field(default_factory=dict)
 
@@ -44,7 +42,7 @@ def choose_count_balanced_candidate(
     eta=0.1,
     top_k=3,
 ):
-    """Choose among minimum-visit candidates using Greedy rank sampling."""
+
     if int(top_k) < 1:
         raise ValueError("top_k must be at least 1")
 

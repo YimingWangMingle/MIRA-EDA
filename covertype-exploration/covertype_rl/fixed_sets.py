@@ -175,19 +175,19 @@ def build_fixed_universe(
     root = np.full(data.continuous_bins.shape[1] + 3, -1, dtype=np.int16)
     add_constraint(root, np.arange(data.n_rows, dtype=np.int64), allow_large=True)
 
-    # Make target regions explicitly reachable.
+
     for constraint in target_regions:
         normalized = _normalize_constraint(constraint, data.continuous_bins.shape[1])
         for relaxed in _relaxed_constraints(normalized):
             add_constraint(relaxed, _indices_for_constraint(data, relaxed), allow_large=True)
 
-    # All one-predicate sets are part of the fixed universe.
+
     for primitive in primitives:
         constraint = root.copy()
         _apply_primitive_to_constraint(constraint, primitive)
         add_constraint(constraint, primitive.indices, allow_large=True)
 
-    # Add all valid two-predicate sets.
+
     for left, right in itertools.combinations(primitives, 2):
         merged = _merge_primitives(root, [left, right])
         if merged is None:
@@ -197,7 +197,7 @@ def build_fixed_universe(
         if len(constraints) >= int(n_sets):
             break
 
-    # Fill the remainder with deterministic sampled three-predicate sets.
+
     attempts = 0
     max_attempts = max(int(n_sets) * 40, 100000)
     primitive_count = len(primitives)

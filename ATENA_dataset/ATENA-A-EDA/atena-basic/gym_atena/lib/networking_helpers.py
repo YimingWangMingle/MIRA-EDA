@@ -27,7 +27,7 @@ def create_datasets_repository():
     act_path = path.join(repo_path, 'actions.tsv')
     disp_path = path.join(repo_path, 'displays.tsv')
     datasets_path = path.join(par_dir, 'reactida/raw_datasets_with_pkt_nums')
-    # Solving printing bug
+
     old_stdout = sys.stdout
     sys.stdout = open(os.devnull, "w")
     datasets_repository = Repository(act_path, disp_path, datasets_path)
@@ -69,32 +69,22 @@ def convert_to_action_vector(action, action_params):
         if "field" in action_params["aggregations"]:
             agg_col = AGG_KEYS.index(action_params["aggregations"]["field"])
         else:
-            agg_col = AGG_KEYS.index('packet_number')  # 'packet_number' col is default aggregation
+            agg_col = AGG_KEYS.index('packet_number')
         if "type" in action_params["aggregations"]:
             agg_func = INVERSE_AGG_MAP_ATENA[(action_params["aggregations"]["type"])]
         else:
-            agg_func = INVERSE_AGG_MAP_ATENA['count']  # count is default aggregation
+            agg_func = INVERSE_AGG_MAP_ATENA['count']
         return [2] + [col] + [0, 0] + [agg_col] + [agg_func]
 
 
 def compute_normalized_readability_gain(df, prev_prev_df, num_of_grouped_cols):
-    """
 
-    Args:
-        df:
-        prev_prev_df:
-        num_of_grouped_cols: 1 if not grouped, else number of grouped columns in df and in prev_prev_df (this is
-        the same number, because this method is called after a filter action
-
-    Returns:
-
-    """
     num_of_grouped_cols = 1
     denominator_epsilon = 0.00001
     disp_rows_prev = len(df)
     disp_rows_prev_prev = len(prev_prev_df)
 
-    # how compact is the resulted display
+
     compact_display_score = normalized_sigmoid_fkt(0.5, 17,
                                                    1 - 1 / math.log(9 + disp_rows_prev * num_of_grouped_cols, 9))
     if disp_rows_prev == 1:
@@ -106,14 +96,14 @@ def compute_normalized_readability_gain(df, prev_prev_df, num_of_grouped_cols):
             0.5, 17, 1 - 1 / math.log(9 + disp_rows_prev_prev * num_of_grouped_cols + denominator_epsilon, 9))
         assert prev_readability >= prev_prev_readability
 
-        # how compact the resulted display of the filter action relative to the display before it.
+
         readability_gain = 1 - prev_prev_readability / prev_readability
 
-        # transforming the readability gain to be in range [-0.5, 0.5]
+
         normalized_readability_gain = -0.5 + 1.0 * normalized_sigmoid_fkt(
             0.6, 11, 1 - readability_gain * compact_display_score)
-        # making negative normalized_readability_gain in the range [-2.0, 0) instead of
-        # of [-0.5, 0) to 'cancel' potential gain of the filter action
+
+
         if normalized_readability_gain < 0:
             normalized_readability_gain *= 4
     return normalized_readability_gain

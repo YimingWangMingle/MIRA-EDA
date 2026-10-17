@@ -32,9 +32,7 @@ class PipelineEnvironment(gym.Env):
         self.exploration_dimensions = self.pipeline.exploration_columns
         self.target_set_index = -1
 
-        # ==========================================
-        # 【严格遵照原论文 5.1 节设定】: 加载全量 Scattered Target Set [cite: 326, 327]
-        # ==========================================
+
         if self.target_set_name not in [None, "None"] and target_items is None:
             with open(f"./rl/targets/{self.target_set_name}.json") as f:
                 exact_target_items = set([int(x) for x in json.load(f)])
@@ -43,30 +41,29 @@ class PipelineEnvironment(gym.Env):
                     pipeline, target_items=exact_target_items, target_set_size=2000)
             print(f"Loaded fixed target set '{self.target_set_name}' with {len(exact_target_items)} objects.")
         elif self.mode == "scattered" and target_items is None:
-            # 1. 从 JSON 加载原始目标
+
             raw_17k_targets = TargetSetGenerator.get_diverse_target_set(
                 number_of_samples=self.target_samples_per_file,
                 seed=self.target_seed
             )
 
-            # 2. 【核心修复：强制类型对齐】
-            # 将 JSON 里的元素全部强制转换为 int（因为星系的 objID 在 Pandas 里通常是 int64）
+
             exact_17k_targets = set([int(x) for x in raw_17k_targets])
 
-            # 3. 打印诊断信息（学术防身术：明确告诉我们类型对齐成功了没有）
+
             sample_target = list(exact_17k_targets)[0]
-            # 获取 Pandas 里对应列的数据类型
+
             df_type = pipeline.initial_collection["galaxies.objID"].dtype 
 
             print(f"Loaded STRICT Paper Baseline Target Set with {len(exact_17k_targets)} objects!")
             print(f"[Target Protocol] seed={self.target_seed} samples_per_file={self.target_samples_per_file}")
             print(f"[🔬 Type Diagnostic] Target type: {type(sample_target)} | DataFrame objID type: {df_type}")
 
-            # 4. 传入 StateEncoder
+
             self.target_items = exact_17k_targets
             self.state_encoder = StateEncoder(
-                pipeline, 
-                target_items=exact_17k_targets, 
+                pipeline,
+                target_items=exact_17k_targets,
                 target_set_size=2000
             )
 
@@ -80,7 +77,7 @@ class PipelineEnvironment(gym.Env):
         self.set_action_space = spaces.Discrete(self.pipeline.discrete_categories_count)
         self.operation_action_space = spaces.Discrete(len(self.action_manager.set_action_types))
 
-        # 状态维度定义 [cite: 303]
+
         self.set_state_dim = self.pipeline.discrete_categories_count * len(self.state_encoder.set_description)
         if self.mode == "by_example":
             self.set_state_dim += len(self.state_encoder.set_description)
@@ -89,7 +86,7 @@ class PipelineEnvironment(gym.Env):
         self.reset()
 
     def get_set_state(self):
-        # 接收外部熟悉度奖励与内部三元动机奖励 
+
         encoded_sets, r_ext, r_int_js = self.state_encoder.encode_datasets(
             datasets=self.datasets, parent_dataset=self.input_set)
         self._cache_latest_dataset_states(encoded_sets)
@@ -97,7 +94,7 @@ class PipelineEnvironment(gym.Env):
         if self.mode == 'by_example':
             state += self.example_state
 
-        # 【加装防火墙】：抹除任何特征计算产生的 NaN 或 Inf
+
         raw_state_array = np.array(state + encoded_sets, dtype=np.float32)
         safe_state_array = np.nan_to_num(raw_state_array, nan=0.0, posinf=0.0, neginf=0.0)
 
@@ -176,11 +173,11 @@ class PipelineEnvironment(gym.Env):
         encoded_set, _, _ = self.state_encoder.encode_dataset(dataset)
 
         operation_state = np.concatenate([
-            self.set_state, 
+            self.set_state,
             np.array(encoded_set, dtype=np.float32)
         ])
 
-        # 【加装防火墙】：同理，保护 Actor 网络不被毒害
+
         safe_operation_state = np.nan_to_num(operation_state, nan=0.0, posinf=0.0, neginf=0.0)
 
         return safe_operation_state
@@ -198,7 +195,7 @@ class PipelineEnvironment(gym.Env):
         self.state_encoder.reset()
 
         if self.mode == "by_example":
-            # 【修复】：Python 3 采样需显式转换 list [cite: 147]
+
             target_list = list(self.state_encoder.target_items)
             target_set_id = self.systemRandom.sample(target_list, 1)[0]
             example_dataset = self.pipeline.get_dataset(set_id=target_set_id)
@@ -256,7 +253,7 @@ class PipelineEnvironment(gym.Env):
             self.set_review_counter += len(result_set_ids & self.sets_viewed)
             self.sets_viewed.update(result_set_ids)
 
-            # 计算双重奖励反馈 [cite: 75, 145]
+
             self.set_state, r_ext, r_int_js = self.get_set_state()
 
         self.episode_info.append({
@@ -274,7 +271,7 @@ class PipelineEnvironment(gym.Env):
         if returned_datasets:
             self._record_exploration_step(r_ext, r_int_js, set_action_array, set_index, operation_action)
         else:
-            # Log the attempted step without re-counting old results as visited.
+
             self.exploration_trace_rows.append({
                 "agent_id": int(self.agentId), "step": int(self.step_count),
                 "set_id": -1, "step_extrinsic_reward": 0.0,

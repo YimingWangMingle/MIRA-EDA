@@ -31,7 +31,7 @@ OPERATOR_TYPE_LOOKUP = {
         2: "group",
         }
 
-#we have 9 filters operators (3 more for strings)
+
 INT_OPERATOR_MAP = {
     0: operator.eq,
     1: operator.gt,
@@ -39,9 +39,9 @@ INT_OPERATOR_MAP = {
     3: operator.lt,
     4: operator.le,
     5: operator.ne,
-    6: None,  #string contains
-    7: None, #string startswith
-    8: None, #string endswith
+    6: None,
+    7: None,
+    8: None,
 }
 
 
@@ -57,8 +57,8 @@ INT_OPERATOR_MAP_REACT = {
 AGG_MAP = {
     0: np.sum,
     1: len ,
-    2: hack_min,#lambda x:np.nanmin(x.dropna()),
-    3: hack_max,#lambda x:np.nanmax(x.dropna()),
+    2: hack_min,
+    3: hack_max,
     4: np.mean
 }
 
@@ -66,8 +66,8 @@ AGG_MAP = {
 AGG_MAP_react = {
     'sum': np.sum,
     'count': len ,
-    'min': hack_min,#lambda x:np.nanmin(x.dropna()),
-    'max': hack_max,#lambda x:np.nanmax(x.dropna()),
+    'min': hack_min,
+    'max': hack_max,
     'avg': np.mean
 }
 
@@ -205,7 +205,7 @@ def get_keys():
     return KEYS
 
 def get_filtered_df(dataset_df, filter_list):
-#legacy:
+
     if not filter_list:
         return dataset_df
 
@@ -215,7 +215,7 @@ def get_filtered_df(dataset_df, filter_list):
         field = filt["field"]
         op_num = filt["condition"]
         value = filt["term"]
-        
+
         opr = INT_OPERATOR_MAP.get(op_num)
         if op_num is not None:
             try:
@@ -224,14 +224,7 @@ def get_filtered_df(dataset_df, filter_list):
             except:
                 return df.truncate(after=-1)
         else:
-            """
-            if op_num==16:
-                df = df[df[field].str.contains(value,na=False)]
-            if op_num==2:
-                df = df[df[field].str.startswith(value,na=False)]
-            if op_num==4:
-                df = df[df[field].str.endswith(value,na=False)]
-            """
+
             if op_num==6:
                 df = df[df[field].str.contains(value,na=False)]
             if op_num==7:
@@ -245,23 +238,22 @@ def get_groupby_df(df, groupings, aggregations):
 
         if not groupings:
             return None,None
-        
+
         df_gb= df.groupby(groupings)
-        
-        #agg_dict={'number':len} #all group-by gets the count by default in REACT-UI
-        #if aggregations: #Custom aggregations: sum,count,avg,min,max
+
+
         agg_dict={}
         for agg in aggregations:
             agg_dict[agg['field']] = AGG_MAP.get(agg['type'])
 
-        try:    
+        try:
             agg_df = df_gb.agg(agg_dict)
         except:
             return None,None
         return df_gb, agg_df
 
 def get_data_column_measures(column):
-    #for each column, compute its: (1) normalized value entropy (2)Null count (3)Unique values count
+
     B=20
     size=len(column)
     if size ==0:
@@ -285,12 +277,12 @@ def calc_data_layer(df):
         for k in KEYS:
             ret_dict[k]={"unique":0.0,"nulls":1.0,"entropy":0.0}
         return ret_dict
-        
+
     return df[KEYS].apply(get_data_column_measures).to_dict()
 
 def get_grouping_measures(group_obj,agg_df):
     if group_obj is None or agg_df is None:
-        return None 
+        return None
     B=20
     groups_num=len(group_obj)
     if groups_num==0:
@@ -321,13 +313,13 @@ def get_grouping_measures(group_obj,agg_df):
             else:
                 agg_nve_dict[ak]=scipy.stats.entropy(np.histogram(column_na,bins=B)[0])/np.log(B)
     return {"group_attrs":group_keys,"agg_attrs":agg_nve_dict,"ngroups":ngroups,"size_var":size_var,"size_mean":size_mean}
-    
+
 def calc_gran_layer(group_obj,agg_df):
-    #print(disp_row.display_id)
+
     return get_grouping_measures(group_obj,agg_df)
-    
+
 def get_raw_data(dataset_df,state_dict):
-    
+
     filtered_df = get_filtered_df(dataset_df, state_dict["filtering"])
     gdf, agg_df= get_groupby_df(filtered_df, state_dict["grouping"], state_dict["aggregations"])
     return (filtered_df,gdf,agg_df)
@@ -336,11 +328,11 @@ def calc_display_vector(dataset_df,state_dict, ret_display=False):
     fdf,gdf,adf=get_raw_data(dataset_df,state_dict)
     data_layer=calc_data_layer(fdf)
     gran_layer=calc_gran_layer(gdf,adf)
-    
+
     vlist=[]
     for d in data_layer.values():
         vlist+=list(d.values())
-    
+
     if not gran_layer:
         vlist+=[-1 for k in KEYS]+[0,0,0]
     else:
@@ -353,16 +345,16 @@ def calc_display_vector(dataset_df,state_dict, ret_display=False):
                 vlist.append(-1)
 
         vlist+=[gran_layer['ngroups'],gran_layer['size_mean'],gran_layer['size_var']]
-    
+
     ddict={"data_layer":data_layer,"granularity_layer":gran_layer}
-    if ret_display:    
-        return np.array(vlist), ddict, (fdf, adf) 
+    if ret_display:
+        return np.array(vlist), ddict, (fdf, adf)
     else:
         return np.array(vlist), ddict
-        
-        
+
+
 def random_action(atype="random"):
-    
+
     if atype=="group":
         rtype=2
     elif atype=="filter":
@@ -377,5 +369,3 @@ def random_action(atype="random"):
     agg_col=np.random.randint(COLS_NO)
     agg_func=np.random.randint(AGG_FUNCS_NO)
     return [rtype,col,filter_op,filter_term,agg_col,agg_func]
-
-

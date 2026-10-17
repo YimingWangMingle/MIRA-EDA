@@ -1,4 +1,3 @@
-"""Observation of session costs without changing the official simulator."""
 import json
 import time
 from pathlib import Path
@@ -21,10 +20,8 @@ class QueryCosts:
         self.seconds += float(counts.get('query_seconds', 0.0))
 
 
-
-
 def action_records(actions):
-    """Lossless action fields; the official repr omits filter terms."""
+
     return [{key: (value.name if hasattr(value, 'name') else value)
              for key, value in vars(action).items()} for action in actions]
 
@@ -45,7 +42,7 @@ def session_cost_row(env, generation_started, metrics_function):
 
 
 def write_costs(result_dir, rows, training_started=None, training_steps=0, training_queries=None):
-    """Worker query time is summed work; phase wall time includes parallelism."""
+
     queries = QueryCosts()
     for row in rows:
         queries.add({key: row.get('simulator_' + key, 0) for key in COUNTER_KEYS + ('query_seconds',)})

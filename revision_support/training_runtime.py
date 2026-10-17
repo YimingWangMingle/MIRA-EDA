@@ -1,4 +1,3 @@
-"""Numerical thread configuration for Galaxy and Covertype training."""
 import os
 
 

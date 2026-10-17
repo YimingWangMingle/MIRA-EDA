@@ -4,7 +4,7 @@ We provide our code and data for Galaxy, Covertype, and the ATENA benchmark (fou
 
 ## Setup
 
-We use Linux and Python 3.9 for Galaxy and Covertype. We split the original Galaxy dataset into two files. From the repository root, we restore it once:
+We use Linux and Python 3.9 for Galaxy and Covertype. The Galaxy CSV is stored as lossless gzip parts to fit GitHub file limits. From the repository root, restore it before running validation or training:
 
 ```bash
 if [ ! -f app/data/sdss/galaxies.csv ]; then
@@ -13,7 +13,7 @@ if [ ! -f app/data/sdss/galaxies.csv ]; then
 fi
 ```
 
-We then install the dependencies and check the package:
+Install the dependencies and check the package from its root directory:
 
 ```bash
 python3.9 -m venv .venv
@@ -42,15 +42,15 @@ python -B run.py --dataset covertype --method mira --seeds 1 --smoke --execute
 python -B run.py --dataset covertype --method all --execute
 ```
 
-For each dataset, we run MIRA, seven comparison baseline methods, and seven ablations on fixed target seeds 1, 2, and 3: 45 runs per dataset. Each full run uses 1,000 episodes of 250 steps with 14 workers and one numerical thread per process. The target seeds define different target tasks. Asynchronous training is not bitwise deterministic.
+For each dataset, we run MIRA, seven comparison methods, and seven replacement ablations on fixed target seeds 1, 2, and 3: 45 runs per dataset. Each full run uses 1,000 episodes of 250 steps with 14 workers and one numerical thread per process. The target seeds define different target tasks. Asynchronous training is not bitwise deterministic.
 
-We use `--method baselines` or `--method ablations` to run either group, or a method ID from [protocol.json](protocol.json) to run one method. Omitting `--execute` prints the commands. PCA uses the first 16 episodes for collection and fitting, then trains for the remaining 984 episodes within the same budget.
+We use `--method baselines` or `--method ablations` to run either group, or one of the method IDs listed below to run one method. Omitting `--execute` prints the commands. PCA uses the first 16 episodes for collection and fitting, then trains for the remaining 984 episodes within the same budget.
 
 We write full runs to `runs/`, short checks to `smoke_runs/`, and resource measurements to the corresponding `cost/` directory. `--output /path/to/new_runs` changes the output location. Each run requires a fresh output directory.
 
 ## ATENA
 
-We compare MIRA, Official ATENA, PureA3C, DORA, Greedy, and Random across all eight datasets. We do not run ablations on this benchmark.
+We compare MIRA, Official ATENA, PureA3C, DORA, Greedy, and Random across all eight datasets. We do not run replacement ablations on this benchmark.
 
 From the repository root, we set up the TensorFlow environment, check one dataset, and run our methods:
 
@@ -80,6 +80,53 @@ python scripts/recalculate_baselines.py --results_dir results --seed 0
 python scripts/summarize_costs.py --root results --seed 0
 ```
 
-We use seed 0 by default and record actual interaction counts after whole-episode rounding. Each episode has 12 actions. Results and checkpoints are written under `ATENA_dataset/results/`.
+We use seed 0 by default and record actual interaction counts after whole-episode rounding. Each episode has 12 actions. Random reports the mean of 16 evaluation sessions. Results and checkpoints are written under `ATENA_dataset/results/`.
 
-We record the fixed settings in [protocol.json](protocol.json) and file hashes in [manifest.json](manifest.json). The shared MIRA core is in `revision_support/`.
+We record file hashes in `manifest.json`. The shared MIRA core is in `revision_support/`; dataset adapters remain in their respective directories. MIRA uses the same environment observations as the corresponding baselines and conditions its policy on an episode-level direction. ATENA evaluates and saves the current policy after training updates.
+
+## Galaxy and Covertype method IDs
+
+| Method ID | Training reward |
+|---|---|
+| `mira` | `2E + 0.5B` |
+| `mira_no_ext` | `0.5B` |
+| `pure_a3c` | `2E` |
+| `dora` | `0.75E + 0.25counter` |
+| `atena` | `2E + 0.1I + 0.1C + 0.1D` |
+| `atena_no_ext` | `0.1I + 0.1C + 0.1D` |
+| `greedy_eda` | Non-learning selection policy |
+| `random` | Non-learning random policy |
+
+E denotes the external task reward, B the directional exploration bonus, I interestingness, C coherency, and D diversity. The representation learner uses the external task reward for `mira` and a zero task-reward input for `mira_no_ext`; both retain analytical grounding and the latent dynamics objective.
+
+The replacement method IDs are `encoder_stats_pca`, `encoder_vae`, `encoder_frozen_random`, `reward_rnd`, `reward_count`, `reward_knn`, and `reward_random`. Each replaces one MIRA component. Covertype uses the common ten-slot candidate selector for all policies that use candidate slots.
+
+## Validation
+
+`python -B verify.py` checks source, command arguments, file hashes, and bundled data. `python -B verify.py --runtime` also checks the pinned Linux runtime and model updates. To run the regression checks, install `pytest` and run `python -B -m pytest tests -q`.
+
+## License and attribution
+
+The project license is reproduced below. The `hierarchy_pos` implementation in the two ATENA evaluation utility modules is adapted from Joel's answer at https://stackoverflow.com/a/29597209/2966723, under Creative Commons Attribution-Share Alike, as attributed in the original source. Source comments and documentation strings have been consolidated or removed in this distribution.
+
+MIT License
+
+Copyright (c) 2021 Aurélien Personnaz
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

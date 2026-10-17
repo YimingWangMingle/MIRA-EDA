@@ -1,4 +1,3 @@
-"""Shared target-blind candidate pool for Covertype policies."""
 import numpy as np
 
 OPERATOR_FAMILIES = ("by_facet", "by_superset", "by_neighbors", "by_distribution")

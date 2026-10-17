@@ -1,5 +1,3 @@
-"""Shared target-blind selection policy for Galaxy and Covertype."""
-
 from dataclasses import dataclass
 
 import numpy as np
@@ -22,7 +20,7 @@ class GreedySelection:
 
 @dataclass(frozen=True)
 class CandidateScoreBatch:
-    """Target-blind score components in candidate input order."""
+
 
     base_scores: np.ndarray
     interestingness: np.ndarray

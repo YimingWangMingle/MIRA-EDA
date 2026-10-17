@@ -93,7 +93,7 @@ class PredicateItemGroup:
 
     def is_empty(self):
         return len(self.components) == 0
-    
+
     def get_filter_values(self, attribute):
         return [x.value for x in self.components if x.attribute == attribute]
 

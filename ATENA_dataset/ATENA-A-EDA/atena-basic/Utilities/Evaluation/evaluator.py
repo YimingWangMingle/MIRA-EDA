@@ -1,16 +1,3 @@
-# from collections import defaultdict
-# from enum import Enum
-# import os
-# import sys
-# from functools import lru_cache
-#
-# import gym
-# # from IPython.core.display import display
-#
-# import gym_atena.envs.atena_env_cont as atena_env_cont
-# import gym_atena.lib.networking_helpers
-# import pandas as pd
-# import numpy as np
 import logging
 import math
 
@@ -51,45 +38,32 @@ logger = logging.getLogger(__name__)
 
 
 class TedResult(object):
-    """
-    A helper class to hold the result  of tree edit distance calculation
-    """
+
     def __init__(self, min_ted, argmin_ref, teds_lst, min_ted_edit_operations, normalized,
                  is_empty=False):
-        self.min_ted = min_ted  # The minimal tree edit distance
-        self.argmin_ref = argmin_ref  # The index of reference for which we got the minimal tree edit distance
-        self.teds_lst = teds_lst  # A list of tree edit distances for each reference
-        self.min_ted_edit_operations = min_ted_edit_operations  # The edit operations for the reference with minimum tree edit distance
-        self.normalized = normalized  # Whether or not the tree edit distance is normalized
-        self.is_empty = is_empty  # Whether or not the calculation is being done for an empty candidate.
+        self.min_ted = min_ted
+        self.argmin_ref = argmin_ref
+        self.teds_lst = teds_lst
+        self.min_ted_edit_operations = min_ted_edit_operations
+        self.normalized = normalized
+        self.is_empty = is_empty
 
     @classmethod
     def get_empty_result(cls, normalized):
-        """
-        REturn a dummy result for an empty candidate
-        Args:
-            normalized:
 
-        Returns:
-
-        """
         return cls(math.nan, None, [math.nan], None, normalized=normalized, is_empty=True)
 
 
 class AllDatasetsTedResult(object):
-    """
-    A helper function to store tree edit distance scores for candidate of each dataset.
-    """
+
     def __init__(self):
-        """
-        In the following list the ith index contains the relevant value for the ith dataset
-        """
-        # Unnormalized
+
+
         self.ted_results_lst = []
         self.min_teds = []
         self.avg_teds = []
 
-        # Normalized
+
         self.norm_ted_results_lst = []
         self.norm_min_teds = []
         self.norm_avg_teds = []
@@ -105,14 +79,7 @@ class AllDatasetsTedResult(object):
             self.norm_avg_teds.append(np.mean(ted_result.teds_lst))
 
     def get_eval_metric_lst(self, eval_metric):
-        """
-        Returns the relevant list for the given tree edit distance EvalMetric
-        Args:
-            eval_metric:
 
-        Returns:
-
-        """
         if eval_metric is EvalMetric.MIN_TED:
             teds_lst = self.min_teds
         elif eval_metric is EvalMetric.NORM_MIN_TED:
@@ -135,14 +102,14 @@ class AllDatasetsTedResult(object):
 class EvalMethod(Enum):
     REFERENCE = 'reference'
     GREEDY = 'greedy'
-    INTERESTINGNESS_GREEDY = 'interestingness_greedy'  # A greedy agent with interestingness component only
+    INTERESTINGNESS_GREEDY = 'interestingness_greedy'
     RANDOM = 'random'
     K_RANDOM = 'k_random'
     MAX_K_RANDOM = 'max_k_random'
     MOST_PROBABLE = 'most_probable'
-    INTER_MOST_PROBABLE = 'inter_most_probable'  # The most probable policy of an agent with interestingness component only
-    SOFTMAX_MOST_PROBABLE = 'softmax_most_probable'  # The most probable policy of an agent with softmax architecture and binning for filter terms
-    SOFTMAX_LIST_MOST_PROBABLE = 'softmax_list_most_probable'  # The most probable policy of an agent with softmax architecture and list of filter terms
+    INTER_MOST_PROBABLE = 'inter_most_probable'
+    SOFTMAX_MOST_PROBABLE = 'softmax_most_probable'
+    SOFTMAX_LIST_MOST_PROBABLE = 'softmax_list_most_probable'
 
 
 class EvalMetric(Enum):
@@ -266,23 +233,10 @@ class Evaluator(object):
                  softmax_model_dir_path,
                  softmax_list_model_dir_path,
                  command_args=None, k=10):
-        """
 
-        Args:
-            model_dir_path: Path to an agent with an paramsoftmax architecture and binning
-            greedy_path:
-            inter_greedy_path: Path to interestingness greedy agent
-            references_path:
-            inter_model_dir_path: Path to an agent with an interestingness component only.
-            softmax_model_dir_path:  Path to an agent with an softmax architecture and binning for filter
-            terms
-            softmax_list_model_dir_path:  Path to an agent with an softmax architecture and fixed list for
-            filter terms
-            command_args:
-        """
         self.schema_name = SchemaName(cfg.schema)
 
-        # validate schema configuration
+
         validate_schema_config(model_dir_path)
         validate_schema_config(inter_model_dir_path)
         validate_schema_config(softmax_model_dir_path)
@@ -294,46 +248,39 @@ class Evaluator(object):
             logger.warning(f"Evaluating agent for FLIGHTS schema!")
         else:
             raise NotImplementedError
-        """
-        Create Actions
-        """
 
-        self.K = k  # Number of random actions per dataset
 
-        # 1. Create agent actions
+        self.K = k
 
-        # 1.1 Regular agent (with all reward components)
-        self.D = None  # num of datasets (to be determined in get_agent_actions)
+
+        self.D = None
         all_types_of_agent_actions = self.get_agent_actions(model_dir_path, command_args, k)
         self.agent_random_actions = all_types_of_agent_actions["agent_random"]
         self.agent_k_random_actions = all_types_of_agent_actions["agent_k_random"]
         self.agent_max_k_random_actions = all_types_of_agent_actions["agent_max_k"]
         self.agent_most_probable_actions = all_types_of_agent_actions["agent_most_probable"]
 
-        # 1.2 Interestingness agent
+
         all_types_of_inter_agent_actions = self.get_agent_actions(inter_model_dir_path, command_args, k)
         self.inter_agent_most_probable_actions = all_types_of_inter_agent_actions["agent_most_probable"]
 
-        # 1.3 Softmax agent with binning
+
         all_types_of_softmax_agent_actions = self.get_agent_actions(softmax_model_dir_path, command_args, k)
         self.softmax_agent_most_probable_actions = all_types_of_softmax_agent_actions["agent_most_probable"]
 
-        # 1.4 Softmax agent with fixed filter terms list
+
         all_types_of_softmax_list_agent_actions = self.get_agent_actions(softmax_list_model_dir_path, command_args, k)
         self.softmax_list_agent_most_probable_actions = all_types_of_softmax_list_agent_actions["agent_most_probable"]
 
-        # 2.1 Create greedy actions
+
         self.greedy_actions = self.get_greedy_actions(greedy_path)
 
-        # 2.2 Create interestingness greedy actions
+
         self.inter_greedy_actions = self.get_greedy_actions(inter_greedy_path)
 
-        # 3. Create references actions
+
         self.refs_actions = self.get_references_actions(references_path)
 
-        """
-        Create Tokens for Actions
-        """
 
     @staticmethod
     def set_framework_cfg_to_human():
@@ -343,20 +290,7 @@ class Evaluator(object):
         cfg.stack_obs_num = 1
 
     def get_greedy_actions(self, greedy_path):
-        """
-        Assumption:
-        Directories and files are in the following structure and name:
-            "dataset0.txt":
-            "dataset1.txt":
-            "dataset2.txt":
-            "dataset3.txt":
 
-        Args:
-            greedy_path:
-
-        Returns:
-
-        """
         greedy_cands = [None for _ in range(self.D)]
         assert os.path.isdir(greedy_path)
 
@@ -371,27 +305,7 @@ class Evaluator(object):
         return greedy_cands
 
     def get_references_actions(self, references_path):
-        """
-        Assumption:
-        Directories and files are in the following structure and name:
-        <references_path>:
-            "dataset0":
-                "session0.txt"
-                "session1.txt"
-                .
-                .
-                .
-            "dataset1"
-            "dataset2"
-            "dataset3"
 
-
-        Args:
-            references_path:
-
-        Returns:
-
-        """
         referencess = [[] for _ in range(self.D)]
         assert os.path.isdir(references_path)
 
@@ -408,7 +322,7 @@ class Evaluator(object):
         return referencess
 
     def get_agent_actions(self, model_dir_path, command_args, k):
-        # Command line argumnets (add --episode-length, --bound-mean, --stack-obs-num, etc.)
+
         if command_args is None:
             command_args = '--algo chainerrl_ppo --arch FFParamSoftmax --episode-length 12 --stack-obs-num 3'
 
@@ -417,14 +331,14 @@ class Evaluator(object):
         agent, env, args = initialize_agent_and_env()
         self.D = len(env.env.repo.data)
 
-        # Set environment properties
+
         gep.update_global_env_prop_from_cfg()
 
-        # Random actions based on the policy of the agent
+
         agent_random_actions = [get_actions_lst_of_agent_for_dataset(agent, env, i) for
                                 i in range(self.D)]
 
-        # k random actions for each dataset based on the random policy of the agent
+
         agent_k_random_actions = [[] for _ in range(self.D)]
         agent_k_random_rewards = [[] for _ in range(self.D)]
         for dataset_number in range(self.D):
@@ -434,7 +348,7 @@ class Evaluator(object):
                 agent_k_random_actions[dataset_number].append(actions_lst)
                 agent_k_random_rewards[dataset_number].append(total_reward)
 
-        # Max out of k random actions for each dataset
+
         argmax_idxs = [
             np.argmax(agent_k_random_rewards[dataset_number])
             for dataset_number in range(self.D)
@@ -444,11 +358,11 @@ class Evaluator(object):
             for dataset_number in range(self.D)
         ]
 
-        # Most probable (deterministic) actions of the agent's policy for each dataset
+
         agent_most_probable_actions = [get_most_probable_actions_lst_of_agent_for_dataset(agent, env, i) for
                                        i in range(self.D)]
 
-        # restore human config
+
         Evaluator.set_framework_cfg_to_human()
 
         result = {
@@ -481,7 +395,7 @@ class Evaluator(object):
             continuous_filter_term_cand=continuous_filter_term_cand
         )
 
-        # Calculate tree corpus BLEU / GLEU
+
         chencherry = SmoothingFunction()
         corpus_bleus = []
         for bleu_n in range(1, 4):
@@ -491,7 +405,7 @@ class Evaluator(object):
             elif is_gleu:
                 corpus_bleus.append(tree_corpus_gleu_n(references, candidates, back_token='[back]', n=bleu_n))
 
-        # Calculate tree sentence BLEU for each candidate individually
+
         sentence_bleus = [dict() for _ in range(self.D)]
         for dataset_num in range(self.D):
             if eval_method is None:
@@ -538,7 +452,7 @@ class Evaluator(object):
             continuous_filter_term_cand=continuous_filter_term_cand
         )
 
-        # Calculate the metric's value for candidate individually
+
         metric_val_per_dataset = [0 for _ in range(self.D)]
         values_to_avg = []
         for dataset_num in range(self.D):
@@ -589,9 +503,7 @@ class Evaluator(object):
         actions = self.get_actions_for_eval_method(eval_method)
         return actions[dataset_num]
 
-    ###############################
-    # Display in notebook helpers #
-    ###############################
+
     def pad_sentences_with_nulls(self, sentences):
         max_length = max([len(sentence) for sentence in sentences])
         return [sentence + (max_length - len(sentence)) * ['None'] for sentence in sentences]
@@ -606,7 +518,7 @@ class Evaluator(object):
         schema_name = SchemaName(cfg.schema)
         if schema_name is SchemaName.NETWORKING:
             eval_methods = [EvalMethod.MOST_PROBABLE,
-                            #EvalMethod.MAX_K_RANDOM, EvalMethod.K_RANDOM, EvalMethod.RANDOM,
+
                             EvalMethod.INTER_MOST_PROBABLE,
                             EvalMethod.SOFTMAX_MOST_PROBABLE,
                             EvalMethod.SOFTMAX_LIST_MOST_PROBABLE,
@@ -614,7 +526,7 @@ class Evaluator(object):
                         ]
         elif schema_name is SchemaName.FLIGHTS:
             eval_methods = [EvalMethod.MOST_PROBABLE,
-                            # EvalMethod.MAX_K_RANDOM, EvalMethod.K_RANDOM, EvalMethod.RANDOM,
+
                             EvalMethod.INTER_MOST_PROBABLE,
                             EvalMethod.SOFTMAX_MOST_PROBABLE,
                             EvalMethod.SOFTMAX_LIST_MOST_PROBABLE,
@@ -631,19 +543,15 @@ class Evaluator(object):
         return eval_methods_strs
 
     def highlight_max(self, data, color='yellow'):
-        """
-        highlight the maximum in a Series or DataFrame
-        see https://stackoverflow.com/questions/45606458/python-pandas-highlighting-maximum-value-in-column
-        https://stackoverflow.com/questions/55688221/highlight-max-min-on-multiindex-dataframe-pandas
-        """
+
         attr = 'background-color: {}'.format(color)
-        # remove % and cast to float
+
         data = data.replace('%', '', regex=True).astype(float)
-        if data.ndim == 1:  # Series from .apply(axis=0) or axis=1
+        if data.ndim == 1:
             is_max = data == data.max()
             return [attr if v else '' for v in is_max]
-        else:  # from .apply(axis=None)
-            # is_max = data == data.max().max()
+        else:
+
             is_max = data == data.groupby(level=0).transform('max')
             return pd.DataFrame(np.where(is_max, attr, ''),
                                 index=data.index, columns=data.columns)
@@ -652,7 +560,7 @@ class Evaluator(object):
         color = 'yellow'
         attr = 'background-color: {}'.format(color)
 
-        if data.ndim == 1:  # Series from .apply(axis=0) or axis=1
+        if data.ndim == 1:
             is_min = data == data.min()
             return [attr if v else '' for v in is_min]
         else:
@@ -661,23 +569,21 @@ class Evaluator(object):
                                 index=data.index, columns=data.columns)
 
     def highlight_max_min(self, data):
-        """
-        see https://stackoverflow.com/questions/41654949/pandas-style-function-to-hignlight-specific-columns
-        """
+
         color = 'yellow'
         attr = 'background-color: {}'.format(color)
 
-        # copy df to new - original data are not changed
+
         df = data.copy()
-        # select all values to default value - red color
+
 
         first_max_cols = 12
 
-        # df_max = df[df['bleu1','bleu2', 'bleu3', 'precision', 'recall', 'f1']]
+
         df_max = df.iloc[:, :first_max_cols]
         is_max = df_max == df_max.groupby(level=0).transform('max')
 
-        # df_min = df[df['min_TED', 'min_TED_norm', 'avg_TED', 'avg_TED_norm']]
+
         df_min = df.iloc[:, first_max_cols:]
         is_min = df_min == df_min.groupby(level=0).transform('min')
 
@@ -690,9 +596,9 @@ class Evaluator(object):
         return pd.concat([df_max_colors, df_min_colors], axis=1)
 
         df.loc[:, :] = 'background-color: red'
-        # overwrite values grey color
+
         df[['B', 'C']] = 'background-color: grey'
-        # return color df
+
         return df
 
     def display_highlighted_max(self, df):
@@ -704,9 +610,6 @@ class Evaluator(object):
     def display_highlighted_max_min(self, df):
         display(df.style.apply(self.highlight_max_min, axis=None))
 
-    ###########################
-    # Action to token helpers #
-    ###########################
 
     @staticmethod
     def action_idx2token(action_idx, gran_level="action_type"):
@@ -742,7 +645,7 @@ class Evaluator(object):
         elif gran_level == "attribute" or action_type_string == "group":
             return f'[{action_type_string}]_[{attr_string}]'
         elif gran_level == "filter_op":
-            # changing filter operator from 'contains' to 'equals' for rows other than info_line
+
             if filter_op_string == "contains" and attr_string != "info_line":
                 filter_op_string = "eq"
             return f'[{action_type_string}]_[{attr_string}]_[{filter_op_string}]'
@@ -758,13 +661,6 @@ class Evaluator(object):
     def actions_lst_to_tokens_lst(self, actions_lst, gran_level="action_type"):
         return [self.action_vec2token(action_vec, gran_level) for action_vec in actions_lst]
 
-    ######################
-    # Evaluation Methods #
-    ######################
-
-    """
-    Tree BLEU for displays
-    """
 
     @lru_cache(maxsize=1)
     def displays_tree_bleu_agent_random(self):
@@ -772,11 +668,7 @@ class Evaluator(object):
 
     @lru_cache()
     def displays_tree_bleu_agent_k_random(self, is_gleu=False):
-        """
 
-        Returns: average of k scores for each dataset
-
-        """
 
         tree_bleus = defaultdict(list)
 
@@ -785,18 +677,18 @@ class Evaluator(object):
             for key, val in self.calculate_tree_bleu_for_displays(self.refs_actions, cands, is_gleu=is_gleu).items():
                 tree_bleus[key].append(val)
 
-        # Calculate average
+
         result = self.calculate_avg_tree_bleus(tree_bleus)
 
         return result
 
     def calculate_avg_tree_bleus(self, tree_bleus):
         result = dict()
-        # Corpus
+
         for key in ['corpus_tree_bleu1', 'corpus_tree_bleu2', 'corpus_tree_bleu3']:
             result[key] = np.mean(tree_bleus[key])
 
-        # Sentence
+
         sentence_bleus_elements = [defaultdict(list) for _ in range(self.D)]
         for elem in tree_bleus['sentence_bleus']:
             for dataset_num in range(self.D):
@@ -894,11 +786,7 @@ class Evaluator(object):
     def displays_eval_metric_multiple_sessions(self, eval_metric,
                                                num_of_sessions_per_dataset,
                                                get_ith_action_in_each_dataset_func):
-        """
 
-        Returns: average of scores for each dataset
-
-        """
 
         if EvalMetric.is_micro_eval_metric(eval_metric):
             cands = []
@@ -919,17 +807,13 @@ class Evaluator(object):
                 ).items():
                     eval_metric_values[key].append(val)
 
-            # Calculate average
+
             result = self.calculate_avg_eval_metric(eval_metric_values)
 
         return result
 
     def displays_eval_metric_agent_k_random(self, eval_metric):
-        """
 
-        Returns: average of scores for each dataset
-
-        """
 
         return self.displays_eval_metric_multiple_sessions(
             eval_metric,
@@ -971,41 +855,41 @@ class Evaluator(object):
 
         data = []
 
-        # Every dataset individually
+
         for dataset_num in range(self.D):
             for eval_method in eval_methods:
                 data_to_append = []
                 for eval_metric in EvalMetric.get_bleu_and_f1_eval_metrics():
-                    if eval_metric in EvalMetric.get_bleu_eval_metrics():  # BLEU
+                    if eval_metric in EvalMetric.get_bleu_eval_metrics():
                         data_elem = self.displays_sentence_tree_bleu_n_for_dataset(eval_method,
                                                                                    eval_metric,
                                                                                    dataset_num)
-                    elif eval_metric in EvalMetric.get_gleu_eval_metrics():  # GLEU
+                    elif eval_metric in EvalMetric.get_gleu_eval_metrics():
                         data_elem = self.displays_sentence_tree_bleu_n_for_dataset(eval_method,
                                                                                    eval_metric,
                                                                                    dataset_num,
                                                                                    is_gleu=True
                                                                                    )
-                    else:  # Non-BLEU
+                    else:
                         data_elem = self.displays_eval_metric_for_dataset(
                             eval_method, eval_metric, dataset_num)
                     data_to_append.append(data_elem)
                 data.append(data_to_append)
 
-        # Average of all datasets
+
         for eval_method in eval_methods:
             data_to_append = []
             for eval_metric in EvalMetric.get_bleu_and_f1_eval_metrics():
-                if eval_metric in EvalMetric.get_bleu_eval_metrics():  # BLEU
+                if eval_metric in EvalMetric.get_bleu_eval_metrics():
                     data_elem = self.displays_corpus_tree_bleu_n(eval_method,
                                                                  eval_metric
                                                                  )
-                elif eval_metric in EvalMetric.get_gleu_eval_metrics():  # GLEU
+                elif eval_metric in EvalMetric.get_gleu_eval_metrics():
                     data_elem = self.displays_corpus_tree_bleu_n(eval_method,
                                                                  eval_metric,
                                                                  is_gleu=True
                                                                  )
-                else:  # Non-BLEU
+                else:
                     data_elem = self.displays_eval_metric_avg_all_datasets(eval_method, eval_metric)
                 data_to_append.append(data_elem)
             data.append(data_to_append)
@@ -1016,9 +900,6 @@ class Evaluator(object):
 
         return df_smmary_tree_bleu_for_displays
 
-    """
-    Tree edit distance (TED) for displays
-    """
 
     def calculate_TED_for_displays(self, references_actions, candidate_actions,
                                    compressed_ref=False,
@@ -1030,11 +911,11 @@ class Evaluator(object):
                                    eval_method=None
                                    ):
 
-        # Calculate TED for each dataset individually
+
         result = AllDatasetsTedResult()
         for dataset_num in range(self.D):
             refs, cand = references_actions[dataset_num], candidate_actions[dataset_num]
-            # Unnormalized
+
             min_ted, argmin_ref, teds_lst, min_ted_edit_operations = compute_minimum_display_TED_from_actions(
                 refs, cand, dataset_number=dataset_num, normalize=False, return_min_ops=True,
                 compressed_ref=compressed_ref,
@@ -1087,11 +968,7 @@ class Evaluator(object):
         return self.calculate_TED_for_displays(self.refs_actions, cands)
 
     def displays_TED_agent_k_random(self):
-        """
 
-        Returns: average of k scores for each dataset
-
-        """
 
         all_datasets_ted_results = []
 
@@ -1100,7 +977,7 @@ class Evaluator(object):
             all_datasets_ted_result = self.calculate_TED_for_displays(self.refs_actions, cands)
             all_datasets_ted_results.append(all_datasets_ted_result)
 
-        # Calculate average
+
         result = self.calculate_avg_all_datasets_ted_results(all_datasets_ted_results)
 
         return result
@@ -1119,15 +996,14 @@ class Evaluator(object):
             norm_min_teds.append(all_datasets_ted_result.norm_min_teds)
             norm_avg_teds.append(all_datasets_ted_result.norm_avg_teds)
 
-        # dummy ted_results_lst
+
         result.ted_results_lst = all_datasets_ted_result.ted_results_lst
 
-        # Compute averages
-        # Unnormalized
+
         result.min_teds = np.mean(min_teds, axis=0)
         result.avg_teds = np.mean(avg_teds, axis=0)
 
-        # Normalized
+
         result.norm_min_teds = np.mean(norm_min_teds, axis=0)
         result.norm_avg_teds = np.mean(norm_avg_teds, axis=0)
 
@@ -1155,7 +1031,7 @@ class Evaluator(object):
 
         data = []
 
-        # Every dataset individually
+
         for dataset_num in range(self.D):
             for eval_method in eval_methods:
                 data_to_append = []
@@ -1164,7 +1040,7 @@ class Evaluator(object):
                     data_to_append.append(data_elem)
                 data.append(data_to_append)
 
-        # Average of all datasets
+
         for eval_method in eval_methods:
             data_to_append = []
             for eval_metric in EvalMetric.get_TED_eval_metrics():
@@ -1205,7 +1081,7 @@ class Evaluator(object):
                 lst1 = []
                 lst2 = []
                 for dataset_num in range(self.D):
-                    if eval_metric in EvalMetric.get_bleu_eval_metrics():  # BLEU
+                    if eval_metric in EvalMetric.get_bleu_eval_metrics():
                         data_elem = self.displays_sentence_tree_bleu_n_for_dataset(eval_method,
                                                                                    eval_metric,
                                                                                    dataset_num)
@@ -1213,7 +1089,7 @@ class Evaluator(object):
                                                                                    eval_metric,
                                                                                    dataset_num)
 
-                    elif eval_metric in EvalMetric.get_gleu_eval_metrics():  # GLEU
+                    elif eval_metric in EvalMetric.get_gleu_eval_metrics():
                         data_elem = self.displays_sentence_tree_bleu_n_for_dataset(eval_method,
                                                                                    eval_metric,
                                                                                    dataset_num,
@@ -1225,11 +1101,11 @@ class Evaluator(object):
                                                                                    is_gleu=True
                                                                                    )
 
-                    elif eval_metric in EvalMetric.get_TED_eval_metrics():  # TED
+                    elif eval_metric in EvalMetric.get_TED_eval_metrics():
                         data_elem = self.displays_TED_for_dataset(eval_method, eval_metric, dataset_num)
                         compare_data_elem = self.displays_TED_for_dataset(compare_eval_method, eval_metric, dataset_num)
 
-                    else:  # Precision, Recall, F1
+                    else:
                         data_elem = self.displays_eval_metric_for_dataset(
                             eval_method, eval_metric, dataset_num)
                         compare_data_elem = self.displays_eval_metric_for_dataset(
@@ -1245,4 +1121,3 @@ class Evaluator(object):
         display(df_pval_for_displays)
 
         return df_pval_for_displays
-

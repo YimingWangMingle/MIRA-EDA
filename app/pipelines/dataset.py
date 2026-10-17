@@ -15,7 +15,7 @@ class Dataset:
         self.count = None
 
     def copy(self):
-        return copy.deepcopy(self) 
+        return copy.deepcopy(self)
 
     def get_count(self, sql_connection):
         self.count = pd.read_sql(self.get_sql_query(attributes=["count(*)"]), sql_connection).iloc[0]["count"]
@@ -39,7 +39,7 @@ class Dataset:
                 query += " WHERE "
             elif len(join_filters) != 0 :
                 joined_join_filters = " AND ".join(join_filters)
-                query += " WHERE " + joined_join_filters 
+                query += " WHERE " + joined_join_filters
                 if len(self.predicate.components) > 0:
                     query += " AND "
             query += self.predicate.to_sql()
@@ -60,4 +60,3 @@ class Dataset:
         if len(interesting_attributes) == 0:
             interesting_attributes = self.data.columns
         return interesting_attributes
-       

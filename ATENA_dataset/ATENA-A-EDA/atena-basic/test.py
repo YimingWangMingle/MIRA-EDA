@@ -22,11 +22,11 @@ def run_random(env, agent=None, dataset_number=None):
     for ep_t in range(cfg.MAX_NUM_OF_STEPS):
         if not agent:
             print("Warning: no agent, only sampling")
-            a = env.action_space.sample()         # estimate stochastic action based on policy
+            a = env.action_space.sample()
         else:
             a = agent.act(s)
         print(a)
-        s_, r, done, info = env.step(a) # make step in environment
+        s_, r, done, info = env.step(a)
         info_hist.append((info,r))
         real_info_hist.append(info)
         s=s_
@@ -39,10 +39,7 @@ def run_random(env, agent=None, dataset_number=None):
 
 
 def simulate(info_hist, displays=False):
-    '''
-    Details about the actions (reward etc.)
-    dispays=True will also show the displays (not only the actions)
-    '''
+
     r_sum = 0
     for i, reward in info_hist:
 

@@ -1,21 +1,15 @@
-"""An example of training PPO against OpenAI Gym Envs.
-This script is an example of training a PPO agent against OpenAI Gym envs.
-Both discrete and continuous action spaces are supported.
-To solve CartPole-v0, run:
-    python train_ppo_gym.py --env CartPole-v0
-"""
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
-from builtins import *  # NOQA
+from builtins import *
 
 
 from future import standard_library
 
 from models.chinerrl_models.parameterized_softmax import FCParamSoftmaxPolicy
 
-standard_library.install_aliases()  # NOQA
+standard_library.install_aliases()
 import argparse
 
 import chainer
@@ -42,13 +36,7 @@ import Utilities.Configuration.config as cfg
 
 
 class A3CFFSoftmax(chainer.ChainList, a3c.A3CModel):
-    """An example of A3C feedforward softmax policy."""
 
-    # def __init__(self, ndim_obs, n_actions, hidden_sizes=(200, 200)):
-    #     self.pi = policies.SoftmaxPolicy(
-    #         model=links.MLP(ndim_obs, n_actions, hidden_sizes))
-    #     self.v = links.MLP(ndim_obs, 1, hidden_sizes=hidden_sizes)
-    #     super().__init__(self.pi, self.v)
 
     def __init__(self, ndim_obs, n_discrete_entries,
                  n_hidden_layers=2, n_hidden_channels=400, beta=1.0):
@@ -65,10 +53,10 @@ class A3CFFSoftmax(chainer.ChainList, a3c.A3CModel):
 
     def pi_and_v(self, state):
         return self.pi(state), self.v(state)
-    
+
 
 class A3CFFParamSoftmax(chainer.ChainList, a3c.A3CModel):
-    """An example of A3C feedforward softmax policy."""
+
 
     def __init__(self, ndim_obs, n_discrete_entries, parametric_segments, parametric_segments_sizes,
                  n_hidden_layers=2, n_hidden_channels=400, beta=1.0):
@@ -88,7 +76,7 @@ class A3CFFParamSoftmax(chainer.ChainList, a3c.A3CModel):
 
 
 class A3CFFMellowmax(chainer.ChainList, a3c.A3CModel):
-    """An example of A3C feedforward mellowmax policy."""
+
 
     def __init__(self, ndim_obs, n_actions, hidden_sizes=(200, 200)):
         self.pi = policies.MellowmaxPolicy(
@@ -101,7 +89,7 @@ class A3CFFMellowmax(chainer.ChainList, a3c.A3CModel):
 
 
 class A3CFFGaussian(chainer.Chain, a3c.A3CModel):
-    """An example of A3C feedforward Gaussian policy."""
+
 
     def __init__(self, obs_size, action_space,
                  n_hidden_layers=2, n_hidden_channels=64,
@@ -128,13 +116,13 @@ class PPOchianerrl:
         obs_space = sample_env.observation_space
         action_space = sample_env.action_space
 
-        # Normalize observations based on their empirical mean and variance
+
         obs_normalizer = chainerrl.links.EmpiricalNormalization(
             obs_space.low.size, clip_threshold=5)
 
-        # Switch policy types accordingly to action space types
+
         if args.arch == 'FFSoftmax':
-            #model = A3CFFSoftmax(obs_space.low.size, action_space.n)
+
             model = A3CFFSoftmax(obs_space.low.size, sample_env.env_prop.get_softmax_layer_size(),
                                  n_hidden_channels=600, beta=cfg.beta)
         elif args.arch == 'FFMellowmax':
@@ -155,8 +143,7 @@ class PPOchianerrl:
         if args.weight_decay > 0:
             opt.add_hook(NonbiasWeightDecay(args.weight_decay))
 
-        # a workaround for saving obs_normalizer
-        # see https://github.com/chainer/chainerrl/issues/376
+
         if 'obs_normalizer' not in PPO.saved_attributes:
             PPO.saved_attributes.append('obs_normalizer')
 
@@ -180,7 +167,6 @@ class PPOchianerrl:
     @property
     def agent(self):
         return self._agent
-
 
 
 def main():
@@ -219,14 +205,10 @@ def main():
     parser.add_argument('--entropy-coef', type=float, default=0.0)
     args = parser.parse_args()
 
-    #logging.basicConfig(level=args.logger_level)
 
-    # Set a random seed used in ChainerRL
     misc.set_random_seed(args.seed, gpus=(args.gpu,))
 
-    # Set different random seeds for different subprocesses.
-    # If seed=0 and processes=4, subprocess seeds are [0, 1, 2, 3].
-    # If seed=1 and processes=4, subprocess seeds are [4, 5, 6, 7].
+
     process_seeds = np.arange(args.num_envs) + args.seed * args.num_envs
     assert process_seeds.max() < 2 ** 32
 
@@ -234,17 +216,17 @@ def main():
 
     def make_env(process_idx, test):
         env = gym.make(args.env)
-        # Use different random seeds for train and test envs
+
         process_seed = int(process_seeds[process_idx])
         env_seed = 2 ** 32 - 1 - process_seed if test else process_seed
         env.seed(env_seed)
-        # Cast observations to float32 because our model uses float32
+
         env = chainerrl.wrappers.CastObservationToFloat32(env)
         if args.monitor:
             env = gym.wrappers.Monitor(env, args.outdir)
         if not test:
-            # Scale rewards (and thus returns) to a reasonable range so that
-            # training is easier
+
+
             env = chainerrl.wrappers.ScaleReward(env, args.reward_scale_factor)
         if args.render:
             env = chainerrl.wrappers.Render(env)
@@ -255,18 +237,18 @@ def main():
             [(lambda: make_env(idx, test))
              for idx, env in enumerate(range(args.num_envs))])
 
-    # Only for getting timesteps, and obs-action spaces
+
     sample_env = gym.make(args.env)
     timestep_limit = sample_env.spec.tags.get(
         'wrapper_config.TimeLimit.max_episode_steps')
     obs_space = sample_env.observation_space
     action_space = sample_env.action_space
 
-    # Normalize observations based on their empirical mean and variance
+
     obs_normalizer = chainerrl.links.EmpiricalNormalization(
         obs_space.low.size, clip_threshold=5)
 
-    # Switch policy types accordingly to action space types
+
     if args.arch == 'FFSoftmax':
         model = A3CFFSoftmax(obs_space.low.size, action_space.n)
     elif args.arch == 'FFMellowmax':
@@ -291,14 +273,14 @@ def main():
     if args.load:
         agent.load(args.load)
 
-    # Linearly decay the learning rate to zero
+
     def lr_setter(env, agent, value):
         agent.optimizer.alpha = value
 
     lr_decay_hook = experiments.LinearInterpolationHook(
         args.steps, args.lr, 0, lr_setter)
 
-    # Linearly decay the clipping parameter to zero
+
     def clip_eps_setter(env, agent, value):
         agent.clip_eps = value
 

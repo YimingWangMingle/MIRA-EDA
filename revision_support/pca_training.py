@@ -1,4 +1,3 @@
-"""Fit a reward-blind PCA using the initial episodes of the training budget."""
 import hashlib
 import json
 from pathlib import Path
@@ -21,12 +20,7 @@ def collection_budget(args):
 
 
 def prepare_in_budget(env, args, backend, result_dir):
-    """Collect whole episodes before constructing any policy/representation model.
 
-    Rewards enter evaluation records only. Neither action selection nor the
-    observation matrix passed to PCA receives reward or target-membership data.
-    Returned records are later logged by the ordinary parameter-server methods.
-    """
     if getattr(args, 'encoder_variant', 'learned') != 'stats_pca':
         return []
     count = collection_budget(args)
@@ -53,7 +47,7 @@ def prepare_in_budget(env, args, backend, result_dir):
     states, records = [], []
     for episode in range(1, count + 1):
         state = env.reset()
-        totals = dict.fromkeys(('extrinsic_reward', 'interestingness', 'target_hits',
+        totals = dict.fromkeys(('extrinsic_reward', 'target_hits',
             'familiarity', 'counter_curiosity', 'coherency', 'diversity', 'total_reward',
             'valid_steps', 'mira_bonus', 'exploration_reward'), 0.)
         totals.update(mira_z_source='pca_collection', mira_pair_source='pca_collection')
@@ -62,22 +56,21 @@ def prepare_in_budget(env, args, backend, result_dir):
             if observation.shape != (env.set_state_dim,) or not np.isfinite(observation).all():
                 raise ValueError('Invalid PCA observation')
             states.append(observation)
-            # Galaxy's empty initial candidate list uses slot zero, as in training.
+
             a = (0 if hasattr(env, 'datasets') and len(env.datasets) == 0 else
                  draw(env.fix_possible_set_action_probs(np.ones(n_set)/n_set)))
             b = draw(env.fix_possible_operation_action_probs(a, np.ones(n_op)/n_op))
             transition = env.step(a, b)
-            state, external, interestingness, done = transition[:4]
+            state, external, _, done = transition[:4]
             if bool(done) != (step == int(args.steps)):
                 raise ValueError('PCA environment episode length differs from declared budget')
             metrics = transition[5] if len(transition) > 5 else {}
-            # No policy updates are made in this phase. The logged total is the
-            # configured reward with unavailable directional bonus equal to zero.
-            exploration = float(args.w_int) * float(interestingness)
+
+
+            exploration = 0.0
             external_weight = 0. if getattr(args, 'baseline', '') == 'mira_no_ext' else float(args.w_ext)
             total = external_weight * float(external) + float(args.alpha) * exploration
             totals['extrinsic_reward'] += float(external)
-            totals['interestingness'] += float(interestingness)
             totals['target_hits'] += int(metrics.get('target_hits', 0))
             totals['familiarity'] += float(external)
             totals['valid_steps'] += int(metrics.get('valid', 0))
@@ -86,8 +79,7 @@ def prepare_in_budget(env, args, backend, result_dir):
         trace, visited = env.consume_exploration_logs()
         for row in trace:
             row.update(mira_z_source='pca_collection', step_mira_bonus=0.,
-                step_total_reward=external_weight * float(row.get('step_extrinsic_reward', 0.))
-                    + float(args.alpha) * float(args.w_int) * float(row.get('step_interestingness', 0.)))
+                step_total_reward=external_weight * float(row.get('step_extrinsic_reward', 0.)))
         records.append(dict(episode=episode, totals=totals,
                             set_ids=list(env.sets_viewed), trace=trace, states=visited))
         print('PCA collection episode {}/{} (included in {} total episodes)'.format(
@@ -117,7 +109,7 @@ def prepare_in_budget(env, args, backend, result_dir):
 
 
 def record_collection(server, records, backend):
-    """Seed evaluation counters only; collection never enters training replay."""
+
     if server.episodes_done or server.episodes_reserved:
         raise ValueError('PCA collection must be recorded before learning')
     for expected, record in enumerate(records, 1):

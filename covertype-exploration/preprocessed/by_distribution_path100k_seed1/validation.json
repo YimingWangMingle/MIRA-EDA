@@ -1,6 +1,6 @@
 {
   "schema": "covertype_cache_validation_v1",
-  "builder_sha256": "714b1536b0954db35794700ea0198a5e8d15fa44ccf353b099a846fa2ef80b21",
+  "builder_sha256": "8045374c3c9703c1a4a7650c21aa851fec0c81a4eb38b24905aaa5eac90b32b7",
   "parameters": {
     "seed": 1,
     "requested_sets": 100000,

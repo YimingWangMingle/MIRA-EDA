@@ -1,4 +1,3 @@
-"""Fixed PCA over training observations, using the existing encoder input clipping."""
 import numpy as np
 
 

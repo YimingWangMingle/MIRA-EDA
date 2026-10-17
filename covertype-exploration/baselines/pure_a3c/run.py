@@ -8,7 +8,7 @@ from covertype_rl import full_a3c
 
 
 def _ensure_pure_a3c_registered():
-    """Keep this wrapper runnable even if full_a3c.py on the server is older."""
+
     full_a3c.BASELINES = set(full_a3c.BASELINES)
     full_a3c.BASELINES.add("pure_a3c")
 

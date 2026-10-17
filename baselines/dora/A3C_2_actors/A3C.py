@@ -35,16 +35,12 @@ parser.add_argument('--steps', type=int, default=250)
 parser.add_argument('--output_profile', choices=('csv', 'full'), default='csv')
 parser.add_argument('--lstm_steps', type=int, default=5)
 
-# ==========================================
-# 融合架构核心参数
-# ==========================================
-# 挂载原始论文 Target Set 以激活外部主线奖励
+
 parser.add_argument('--target_set', type=str, default=None)
 parser.add_argument('--target_seed', type=int, default=None)
 parser.add_argument('--target_samples_per_file', type=int, default=100)
 
-# Original paper familiarity-curiosity reward.
-# Default 0.25 corresponds to 75FAM-25CUR.
+
 parser.add_argument('--counter_curiosity_ratio', type=float, default=0.25)
 
 parser.add_argument('--notes', type=str, default="")
@@ -271,9 +267,7 @@ class WorkerAgent:
         self.operation_actor = OperationActor(self.operation_state_dim, self.operation_action_dim, self.steps, args.actor_lr, args.name)
         self.critic = Critic(self.set_state_dim, self.steps, args.critic_lr, args.name)
 
-        # ==============================================================
-        # 🔬 终身记忆库：记录 Agent 在整个训练生命周期内去过哪些节点
-        # ==============================================================
+
         self.set_op_counters = {}
 
         self.sync_with_ps()
@@ -314,7 +308,7 @@ class WorkerAgent:
                 break
             set_state_batch, operation_state_batch, set_action_batch, operation_action_batch, reward_batch = [], [], [], [], []
 
-            # 原文 baseline 评估指标容器
+
             ep_ext_score, ep_total_reward = 0, 0
             ep_counter_curiosity_score = 0
             episode_set_op_counters = {}
@@ -343,7 +337,7 @@ class WorkerAgent:
                     probs = self.env.fix_possible_operation_action_probs(set_action, probs[0])
                     operation_action = np.random.choice(self.operation_action_dim) if all(np.isnan(x) for x in probs) else np.random.choice(self.operation_action_dim, p=probs)
 
-                    # 执行环境步进
+
                     next_set_state, env_r_ext, env_r_int_js, done, set_op_pair = self.env.step(set_action, operation_action)
 
                     r_ext = float(np.squeeze(env_r_ext))
@@ -359,11 +353,8 @@ class WorkerAgent:
 
                     counter_curiosity_reward = (100.0 / self.episode_steps) / op_counter
 
-                    # 2. 状态变更防火墙 (防止彻底挂机)
-                    # Original paper baseline has no coherence reward.
 
-                    # 3. 局部空间距离多样性 (用于小步挖掘期)
-                    set_state = next_set_state 
+                    set_state = next_set_state
 
                     total_step_reward = (
                         (1.0 - self.args.counter_curiosity_ratio) * r_ext
@@ -423,7 +414,7 @@ class WorkerAgent:
 
                     set_action_steps = next_set_action_steps
 
-                # 单次 Episode 跑完，输出最终的核心评价指标
+
                 if not failed:
                     for pair, count in episode_set_op_counters.items():
                         self.set_op_counters[pair] = self.set_op_counters.get(pair, 0) + count
@@ -460,7 +451,7 @@ class WorkerAgent:
                                 'target_efficiency',
                                 'cumulative_extrinsic_reward',
                                 'cumulative_target_efficiency',
-                            ]) 
+                            ])
                         writer.writerow([
                             curr_episode,
                             ep_ext_score,

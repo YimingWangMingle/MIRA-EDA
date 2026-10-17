@@ -1,5 +1,3 @@
-"""Opt-in query timing and time-window summaries."""
-
 import atexit
 from collections import defaultdict
 from contextlib import contextmanager
@@ -93,7 +91,7 @@ def timed_query(backend, operation):
 
 
 def query_step(function):
-    """Attach the episode-local step; do not include the whole step in latency."""
+
     @wraps(function)
     def wrapped(self, *args, **kwargs):
         if not _enabled():
@@ -106,8 +104,6 @@ def query_step(function):
         finally:
             _context.reset(token)
     return wrapped
-
-
 
 
 def summarize_events(directory, window_seconds=60.):
@@ -123,7 +119,7 @@ def summarize_events(directory, window_seconds=60.):
         for line in path.read_text(encoding='utf-8').splitlines():
             event = json.loads(line)
             if event['kind'] != 'query':
-                continue  # Ignore retired diagnostic events in historical logs.
+                continue
             window = int(event['elapsed_seconds'] // window_seconds)
             bucket = windows[(event['backend'], window)]
             if event['kind'] == 'query':

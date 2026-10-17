@@ -25,12 +25,8 @@ class DisplayCalculator(object):
         return self.dataset.dataset_df
 
     def get_filtered_df(self, filter_tpl: FilteringTuple):
-        """
 
-        :param filter_tpl: namedtuple of type FilteringTuple
-        :return:
-        """
-        # legacy:
+
         if not filter_tpl:
             return self.dataset_df
 
@@ -83,7 +79,7 @@ class DisplayCalculator(object):
 
         df_gb = df.groupby(list(groupings), observed=True)
 
-        agg_dict = {}  # A mapping from column name to aggregation function: eg. {'src_ip': len}
+        agg_dict = {}
         for agg in aggregations:
             assert isinstance(agg.aggregation_function, AggregationFunction)
             agg_dict[agg.column] = agg.aggregation_function.func
@@ -94,9 +90,7 @@ class DisplayCalculator(object):
         return df_gb, agg_df
 
     def get_data_column_measures(self, column):
-        """
-        for each column, compute its: (1) normalized value entropy (2)Null count (3)Unique values count
-        """
+
         B = 20
         size = len(column)
         if size == 0:
@@ -104,17 +98,17 @@ class DisplayCalculator(object):
         column_na_value_counts = CounterWithoutNanKeys(column)
         column_na_value_counts_values = column_na_value_counts.values()
         cna_size = sum(column_na_value_counts_values)
-        # number of NaNs
+
         n = size - cna_size
-        # number of unique non NaNs values
+
         u = len(column_na_value_counts.keys())
-        # normalizing the number of unique non-NaNs values by the total number of non-NaNs
+
         u_n = u / cna_size if u != 0 else 0
 
         if column.name not in self.dataset.numeric_columns:
             h = entropy(list(column_na_value_counts_values))
             h = h / math.log(cna_size) if cna_size > 1 else 0.0
-        else:  # if numeric data only in column
+        else:
             h = entropy(np.histogram(column_na_value_counts.non_nan_iterable, bins=B)[0]) / math.log(
                 B) if cna_size > 1 else 0.0
 
@@ -171,7 +165,7 @@ class DisplayCalculator(object):
                 "site_std": site_std, "inverse_size_mean": inverse_size_mean}
 
     def calc_gran_layer(self, group_obj, agg_df):
-        # print(disp_row.display_id)
+
         return self.get_grouping_measures(group_obj, agg_df)
 
     def get_raw_data(self, state):

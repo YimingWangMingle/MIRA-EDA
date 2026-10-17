@@ -1,7 +1,3 @@
-"""
-This file contains all data with regard to columns in the flight delays schema
-"""
-
 KEYS = ['flight_id', 'airline', 'origin_airport', 'destination_airport', 'flight_number',
         'delay_reason', 'departure_delay',
         'scheduled_trip_time',
@@ -22,8 +18,8 @@ KEYS_ANALYST_STR = ['Flight ID', 'Airline', 'Origin Airport', 'Destination Airpo
                     ]
 
 assert len(KEYS) == len(KEYS_ANALYST_STR)
-FILTER_COLS = KEYS  # Note: changing this from KEYS require to change other occurrences of KEYS in the codebase
-GROUP_COLS = KEYS  # Note: changing this from KEYS require to change other occurrences of KEYS in the codebase
+FILTER_COLS = KEYS
+GROUP_COLS = KEYS
 
 NUMERIC_KEYS = {}
 AGG_KEYS = ['flight_id']

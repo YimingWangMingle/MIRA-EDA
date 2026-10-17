@@ -15,15 +15,15 @@ for path in [str(ATENA_BASIC), str(BENCHMARK)]:
         sys.path.insert(0, path)
 
 
-from atena.evaluation.metrics import EvalInstance, get_dataframe_all_eval_metrics  # noqa: E402
-from atena.simulation.actions import (  # noqa: E402
+from atena.evaluation.metrics import EvalInstance, get_dataframe_all_eval_metrics
+from atena.simulation.actions import (
     AggregationFunction,
     BackAction,
     FilterAction,
     FilterOperator,
     GroupAction,
 )
-from atena.simulation.dataset import (  # noqa: E402
+from atena.simulation.dataset import (
     CyberDatasetName,
     Dataset,
     DatasetMeta,

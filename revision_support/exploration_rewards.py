@@ -1,8 +1,3 @@
-"""Centralized reward replacements; kNN uses the current MIRA representation.
-
-No task rewards enter this API. The kNN encoder itself retains its original
-training objective, which can depend on task rewards in full MIRA.
-"""
 import json
 from pathlib import Path
 import numpy as np
@@ -10,7 +5,7 @@ from .rnd import RandomNetworkDistillation
 
 
 def select_bonus(kind, directional, replacement):
-    """Evaluate only the reward selected by the experiment configuration."""
+
     return directional() if kind == 'directional' else replacement()
 
 
@@ -39,8 +34,8 @@ class ExplorationReward:
             if not callable(embed):
                 raise ValueError('kNN requires the current MIRA encoder')
             observations = np.concatenate([self.knn_states, states], axis=0)
-            # Re-encode raw history under one current model version; never
-            # compare embeddings cached before an encoder update.
+
+
             vectors = np.asarray(embed(observations), dtype=np.float64)
             if (vectors.ndim != 2 or len(vectors) != len(observations)
                     or vectors.shape[1] == 0 or not np.isfinite(vectors).all()):
@@ -59,7 +54,7 @@ class ExplorationReward:
         values = []
         for state in states:
             state = state.astype('<f4', copy=True)
-            state[state == 0] = 0.  # Canonicalize signed zero.
+            state[state == 0] = 0.
             key = state.tobytes().hex()
             count = self.counts.get(key, 0) + 1
             self.counts[key] = count

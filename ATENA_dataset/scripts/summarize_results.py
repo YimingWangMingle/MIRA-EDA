@@ -47,10 +47,8 @@ def _validate_row(row, source):
         if field not in row:
             raise ValueError(f"{source} missing official metric: {field}")
         _finite_number(row[field], f"{source} {field}")
-    if "policy_source" in row and row["policy_source"] not in ("online", "swa"):
-        raise ValueError(f"{source} policy_source must be online or swa")
     for field, value in row.items():
-        if field in {"method", "schema", "policy_source"}:
+        if field in {"method", "schema"}:
             continue
         if isinstance(value, bool):
             raise ValueError(f"{source} {field} must not be boolean")
@@ -91,7 +89,7 @@ def _parse_csv_row(raw, fieldnames, row_number, path):
     row = {}
     for field in fieldnames:
         value = raw[field]
-        if field in {"method", "schema", "policy_source"}:
+        if field in {"method", "schema"}:
             if not value:
                 raise ValueError(f"{path} row {row_number} {field} is empty")
             row[field] = value

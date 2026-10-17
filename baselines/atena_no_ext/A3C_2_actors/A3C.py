@@ -35,16 +35,12 @@ parser.add_argument('--steps', type=int, default=250)
 parser.add_argument('--output_profile', choices=('csv', 'full'), default='csv')
 parser.add_argument('--lstm_steps', type=int, default=5)
 
-# ==========================================
-# 融合架构核心参数
-# ==========================================
-# 挂载原始论文 Target Set 以激活外部主线奖励
+
 parser.add_argument('--target_set', type=str, default=None)
 parser.add_argument('--target_seed', type=int, default=None)
 parser.add_argument('--target_samples_per_file', type=int, default=100)
 
-# ATENA w/o Ext compound EDA reward weights.
-# Extrinsic reward is logged for evaluation, but not used for policy training.
+
 parser.add_argument('--w_int', type=float, default=0.1, help="ATENA interestingness weight")
 parser.add_argument('--w_coh', type=float, default=0.1, help="ATENA coherency weight")
 parser.add_argument('--w_div', type=float, default=0.1, help="ATENA diversity weight")
@@ -271,9 +267,7 @@ class WorkerAgent:
         self.operation_actor = OperationActor(self.operation_state_dim, self.operation_action_dim, self.steps, args.actor_lr, args.name)
         self.critic = Critic(self.set_state_dim, self.steps, args.critic_lr, args.name)
 
-        # ==============================================================
-        # 🔬 终身记忆库：记录 Agent 在整个训练生命周期内去过哪些节点
-        # ==============================================================
+
         self.state_visit_counts = {}
 
         self.sync_with_ps()
@@ -314,7 +308,7 @@ class WorkerAgent:
                 break
             set_state_batch, operation_state_batch, set_action_batch, operation_action_batch, reward_batch = [], [], [], [], []
 
-            # 双擎评估指标容器
+
             ep_ext_score, ep_int_score, ep_coh_score, ep_div_score, ep_total_reward = 0, 0, 0, 0, 0
             episode_history_phi = []
 
@@ -343,7 +337,7 @@ class WorkerAgent:
                     probs = self.env.fix_possible_operation_action_probs(set_action, probs[0])
                     operation_action = np.random.choice(self.operation_action_dim) if all(np.isnan(x) for x in probs) else np.random.choice(self.operation_action_dim, p=probs)
 
-                    # 执行环境步进
+
                     next_set_state, env_r_ext, env_r_int_js, done, set_op_pair = self.env.step(set_action, operation_action)
 
                     r_ext = float(np.squeeze(env_r_ext))
@@ -352,30 +346,29 @@ class WorkerAgent:
                     phi_s_t = np.array(set_state).flatten()
                     phi_s_next = np.array(next_set_state).flatten()
 
-                    # 1. 终身记忆计数器 (Lifelong Memory Counter) 
+
                     state_hash = hash(phi_s_next.tobytes())
                     self.state_visit_counts[state_hash] = self.state_visit_counts.get(state_hash, 0) + 1
                     r_curiosity = 1.0 / self.state_visit_counts[state_hash]
 
-                    # 2. 状态变更防火墙 (防止彻底挂机)
+
                     if np.allclose(phi_s_t, phi_s_next, atol=1e-5):
                         r_coh = 0.0
                     else:
                         r_coh = float(self.compute_cosine_similarity(phi_s_t, phi_s_next))
 
-                    # 3. 局部空间距离多样性 (用于小步挖掘期)
+
                     if len(episode_history_phi) == 0:
                         dist_div = 1.0
                     else:
                         distances = [np.linalg.norm(phi_s_next - h) for h in episode_history_phi]
                         min_dist = np.min(distances)
-                        dist_div = float(1.0 - np.exp(-0.1 * min_dist)) 
+                        dist_div = float(1.0 - np.exp(-0.1 * min_dist))
 
                     episode_history_phi.append(phi_s_next)
-                    set_state = next_set_state 
+                    set_state = next_set_state
 
-                    # ATENA w/o Ext baseline:
-                    # optimize compound EDA quality only, then evaluate by extrinsic target discovery.
+
                     total_step_reward = (
                         (self.args.w_int * r_int)
                         + (self.args.w_coh * r_coh)
@@ -437,7 +430,7 @@ class WorkerAgent:
 
                     set_action_steps = next_set_action_steps
 
-                # 单次 Episode 跑完，输出最终的核心评价指标
+
                 if not failed:
                     episode_set_ids = list(getattr(self.env, "sets_viewed", []))
                     metrics = ray.get(self.ps.record_episode_metrics.remote(ep_ext_score, episode_set_ids))
@@ -472,7 +465,7 @@ class WorkerAgent:
                                 'target_efficiency',
                                 'cumulative_extrinsic_reward',
                                 'cumulative_target_efficiency',
-                            ]) 
+                            ])
                         writer.writerow([
                             curr_episode,
                             ep_ext_score,

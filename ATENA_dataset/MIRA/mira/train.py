@@ -14,7 +14,6 @@ from .evaluate import (
     write_metrics_csv,
 )
 from .rollout_pool import PersistentRolloutExecutor
-from .swa import RunningWeightAverage
 from atena_common.costs import QueryCosts, write_costs
 
 
@@ -22,7 +21,6 @@ METHOD = "MIRA"
 FORMAL_METRICS_FILE = "eval_metrics.csv"
 FORMAL_FINAL_FILE = "final_metrics.json"
 FORMAL_POLICY_FILE = "policy.weights.h5"
-ONLINE_POLICY_FILE = "policy.online.weights.h5"
 FORMAL_ACTION_PREFIX = "actions_steps"
 TRAIN_LOG_FIELDS = (
     "update",
@@ -33,8 +31,6 @@ TRAIN_LOG_FIELDS = (
     "mira_lr",
     "alpha",
     "entropy_coef",
-    "swa_count",
-    "swa_active",
     "policy_loss",
     "value_loss",
     "entropy",
@@ -106,7 +102,7 @@ def _run_experiment(args, rollout_executor):
         / "{}{}".format(args.schema, int(args.dataset_number))
         / "seed{}".format(int(args.seed))
     )
-    # This runner starts fresh and must never mix existing run artifacts.
+
     result_dir.mkdir(parents=True, exist_ok=False)
     write_json(result_dir / "config.json", vars(args))
 
@@ -131,8 +127,6 @@ def _run_experiment(args, rollout_executor):
         statistic_indices=probe_env.statistic_indices,
         lambda_ana=args.mira_lambda_ana, mc_samples=args.mira_mc_samples,
     )
-    swa = RunningWeightAverage(start_fraction=args.swa_start)
-    formal_model = PolicyValueNet(state_dim, action_dim, hidden=args.hidden, latent_dim=args.mira_latent_dim)
     training_queries = QueryCosts()
 
     metrics_rows = []
@@ -170,16 +164,13 @@ def _run_experiment(args, rollout_executor):
             batch = _merge_rollouts(rollouts)
             steps_done += int(len(batch["rewards"]))
             update_idx += 1
-    
+
             update_stats = _a3c_update(model, optimizer, batch, args)
-            # Average every eligible post-update snapshot by a predeclared rule.
-            # The online model remains the sole source for rollouts and gradients.
-            swa.update(model.get_weights(), steps_done / float(args.steps))
             mira_stats = learner.submit(batch['states'], batch['actions'], batch['task_rewards'], batch['next_states'])
             reward_moments.update(batch['raw_bonuses'])
             mira_stats['metric_target'] = mira_stats['mean_metric_target']
             mira_stats['raw_directional_reward'] = float(np.mean(batch['raw_bonuses']))
-    
+
             _append_train_log(train_log_path, {
                 "update": update_idx,
                 "steps": steps_done,
@@ -193,27 +184,21 @@ def _run_experiment(args, rollout_executor):
                 "mira_lr": float(args.mira_lr),
                 "alpha": float(args.alpha),
                 "entropy_coef": float(args.entropy_coef),
-                "swa_count": swa.count,
-                "swa_active": int(swa.active),
                 **update_stats,
                 **mira_stats,
             })
-    
+
             if update_idx % max(1, int(args.eval_interval)) == 0 or steps_done >= args.steps:
-                formal_model.set_weights(swa.formal_weights(model.get_weights()))
-                formal_row = evaluate_policy(args, formal_model, result_dir, steps_done)
-                formal_row.update(policy_source="swa" if swa.active else "online",
-                                  swa_count=swa.count)
+                formal_row = evaluate_policy(args, model, result_dir, steps_done)
                 metrics_rows.append(formal_row)
                 write_metrics_csv(result_dir / FORMAL_METRICS_FILE, metrics_rows)
-                formal_model.save_weights(str(result_dir / FORMAL_POLICY_FILE))
+                model.save_weights(str(result_dir / FORMAL_POLICY_FILE))
     finally:
         learner.close()
     mira.reward_moments = reward_moments
     mira.save_models(result_dir/'representation')
     write_json(result_dir/'representation_training.json', learner.stats())
 
-    model.save_weights(str(result_dir / ONLINE_POLICY_FILE))
     write_json(result_dir / FORMAL_FINAL_FILE, formal_final_row(metrics_rows))
     write_costs(result_dir, metrics_rows, training_started, steps_done, training_queries)
     return metrics_rows
@@ -429,8 +414,6 @@ def _gae(rewards, values, gamma, gae_lambda):
         running = delta + float(gamma) * float(gae_lambda) * running
         advantages[index] = running
     return advantages, advantages + values[:-1]
-
-
 
 
 def _init_train_log(path):

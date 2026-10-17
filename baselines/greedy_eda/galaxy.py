@@ -1,5 +1,3 @@
-"""Standalone target-blind Greedy EDA runner for Galaxy."""
-
 import argparse
 import csv
 import json

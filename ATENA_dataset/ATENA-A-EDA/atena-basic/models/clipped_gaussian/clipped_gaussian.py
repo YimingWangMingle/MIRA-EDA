@@ -2,7 +2,7 @@ from __future__ import division
 from __future__ import unicode_literals
 from __future__ import print_function
 from __future__ import absolute_import
-from builtins import *  # NOQA
+from builtins import *
 from future import standard_library
 standard_library.install_aliases()
 
@@ -28,8 +28,8 @@ def _unwrap_variable(x):
 
 
 def elementwise_gaussian_log_pdf(x, mean, var, ln_var):
-    # log N(x|mean,var)
-    #   = -0.5log(2pi) - 0.5log(var) - (x - mean)**2 / (2*var)
+
+
     return -0.5 * np.log(2 * np.pi) - \
         0.5 * ln_var - \
         ((x - mean) ** 2) / (2 * var)
@@ -39,10 +39,7 @@ NPY_SQRT1_2 = 1 / (2 ** 0.5)
 
 
 def _ndtr(a):
-    """CDF of the standard normal distribution.
 
-    See https://github.com/scipy/scipy/blob/master/scipy/special/cephes/ndtr.c
-    """
     if not isinstance(a, chainer.Variable):
         a = chainer.Variable(a)
     x = a * NPY_SQRT1_2
@@ -58,15 +55,12 @@ def _ndtr(a):
 
 
 def _safe_log(x):
-    """Logarithm function that won't backprop inf to input."""
+
     return F.log(F.where(x.data > 0, x, x.data))
 
 
 def _log_ndtr(x):
-    """Log CDF of the standard normal distribution.
 
-    See https://github.com/scipy/scipy/blob/master/scipy/special/cephes/ndtr.c
-    """
     if not isinstance(x, chainer.Variable):
         x = chainer.Variable(x)
     return F.where(
@@ -79,21 +73,21 @@ def _log_ndtr(x):
 
 
 def _gaussian_log_cdf(x, mu, sigma):
-    """Log CDF of a normal distribution."""
+
     if not isinstance(x, chainer.Variable):
         x = chainer.Variable(x)
     return _log_ndtr((x - mu) / sigma)
 
 
 def _gaussian_log_sf(x, mu, sigma):
-    """Log SF of a normal distribution."""
+
     if not isinstance(x, chainer.Variable):
         x = chainer.Variable(x)
     return _log_ndtr(-(x - mu) / sigma)
 
 
 class ClippedGaussian(chainerrl.distribution.GaussianDistribution):
-    """Clipped Gaussian distribution."""
+
 
     def __init__(self, mean, var, low, high):
         super().__init__(mean, var)

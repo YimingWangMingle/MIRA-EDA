@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from copy import deepcopy
 import pandas as pd
 import json
@@ -42,8 +40,8 @@ INT_OPERATOR_MAP = {
 AGG_MAP = {
     'sum': np.sum,
     'count': len ,
-    'min': hack_min,#lambda x:np.nanmin(x.dropna()),
-    'max': hack_max,#lambda x:np.nanmax(x.dropna()),
+    'min': hack_min,
+    'max': hack_max,
     'avg': np.mean
 }
 
@@ -59,7 +57,7 @@ class Repository:
         self.actions = pd.read_csv(actions_tsv, sep = '\t', escapechar='\\', keep_default_na=False)
         self.displays = pd.read_csv(display_tsv, sep = '\t', escapechar='\\', keep_default_na=False)
         self.actions.action_params= self.actions.action_params.apply(get_dict)
-        #self.actions.bag= self.actions.bag.apply(get_dict)
+
         self.displays.granularity_layer= self.displays.granularity_layer.apply(get_dict)
         self.displays.data_layer= self.displays.data_layer.apply(get_dict)
         self.schema=schema
@@ -79,26 +77,17 @@ class Repository:
         return self.actions[self.actions.action_id == action_id].iloc[0]
 
     def get_session_actions_by_id(self, session_id):
-        '''
-        Returns a DataFrame containing the "action_type", "action_params", "parent_display_id", "child_display_id"
-        coloumns correspoding to this session_id
-        '''
+
         return self.actions[self.actions['session_id'] == session_id][
             ["action_type", "action_params", "parent_display_id", "child_display_id"]]
 
     @staticmethod
     def static_get_session_actions_by_id_all_rows(session_id, actions_df):
-        '''
-        Returns a DataFrame containing all action
-        rows correspoding to this session_id
-        '''
+
         return actions_df[actions_df['session_id'] == session_id]
 
     def get_session_actions_by_id_all_rows(self, session_id):
-        '''
-        Returns a DataFrame containing all action
-        rows correspoding to this session_id
-        '''
+
         return self.actions[self.actions['session_id'] == session_id]
 
     @staticmethod
@@ -124,14 +113,7 @@ class Repository:
 
     @staticmethod
     def update_history_after_action_and_get_new_state(all_states, current_state_history, action):
-        '''
 
-        :param all_states: A list of states where each index contains the state corresponding to the index step in the session
-        :param current_state_history: A list of states that represents the current stack of states
-         (i.e. if back operations were taken, some previous states won't appear here)
-        :param action: a single row of an actions_df
-        :return: The new state and updates in place (!) both all_states and current_state_history
-        '''
         if action.action_type == "back":
             if len(current_state_history) > 1:
                 current_state_history.pop()
@@ -146,7 +128,7 @@ class Repository:
             current_state_history.append(new_state)
 
         elif action.action_type == "group":
-            # add to the grouping and aggregations lists of the prev state:
+
             new_state = deepcopy(current_state_history[-1])
             grouping_set = set(new_state["grouping"])
             grouping_params = action.action_params
@@ -164,10 +146,7 @@ class Repository:
         return new_state
 
     def add_back_actions_to_session(self, session_df):
-        '''
-        session_df: a DataFrame containing the columns "parent_display_id" and "child_display_id"
-        of the all tuples of some session with  and  of some seesion (e.g. by calling get_session_actions_by_id_all_rows)
-        '''
+
         session_df = session_df.reset_index(drop=True)
         session_id, user_id, project_id, solution = tuple(
             session_df.loc[0, ["session_id", "user_id", "project_id", "solution"]].tolist())
@@ -178,7 +157,7 @@ class Repository:
         displays_order = []
         idx = 0
 
-        # find all back operations
+
         for parent_id, child_id in parent_child_displays:
             while displays_order and parent_id != displays_order[-1]:
                 back_parent = displays_order.pop()
@@ -194,7 +173,7 @@ class Repository:
                 displays_order.append(child_id)
             idx += 1
 
-        # create a new DataFrame with back operations added
+
         new_df = df = pd.DataFrame(columns=session_df.columns)
         dfs_to_concat = []
         start_idx = 0
@@ -206,21 +185,17 @@ class Repository:
         dfs_to_concat.append(session_df.ix[start_idx:])
         new_df = pd.concat(dfs_to_concat).reset_index(drop=True)
 
-        # reorder DataFrame to get the original columns order
+
         new_df = new_df[session_df.columns]
 
         return new_df
 
     def update_sort_and_project_parents_and_childs(self, session_df):
-        """
-        Update parent_ids and child ids as if sort and project actions are removed
 
-        :return: new df with updated parent_ids and child_ids
-        """
-        conversion_dict = dict()  # bad-good pairs
+        conversion_dict = dict()
         session_df = session_df.reset_index(drop=True)
 
-        # find first idx of an actions other than sort or project
+
         good_idx = idx = 0
         good_parent = session_df.at[good_idx, 'parent_display_id']
         first = True
@@ -234,7 +209,7 @@ class Repository:
             idx = good_idx + 1
             first = False
 
-        # map bad to good
+
         session_df['child_display_id'] = session_df['child_display_id'].apply(
             lambda x: x if x not in conversion_dict else conversion_dict[x])
         session_df['parent_display_id'] = session_df['parent_display_id'].apply(
@@ -243,13 +218,13 @@ class Repository:
         return session_df, conversion_dict
 
     def convert_session_df_to_atena(self, session_df):
-        # update parent_ids and child_ids
+
         session_df, _ = self.update_sort_and_project_parents_and_childs(session_df)
 
-        # remove sort and project actions
+
         session_df = session_df[(session_df["action_type"] != "project") & (session_df["action_type"] != "sort")]
 
-        # add back actions
+
         session_df = self.add_back_actions_to_session(session_df)
 
         return session_df
@@ -262,7 +237,7 @@ class Repository:
         session_ids = session_ids - flawed_session_ids
         sessions_dfs = []
 
-        # convert each actions session to ATENA
+
         for session_id in session_ids:
             converted_df = self.convert_session_df_to_atena(self.get_session_actions_by_id_all_rows(session_id))
             sessions_dfs.append(converted_df)
@@ -282,7 +257,7 @@ class Repository:
 
 
     def __get_filtered_df(self, project_id, filtering_dict):
-    #legacy:
+
         filters = filtering_dict["list"]
         df = self.data[project_id - 1].copy()
         if filters:
@@ -309,7 +284,7 @@ class Repository:
         groupings = grouping_dict["list"]
         if aggregation_dict:
             aggregations = aggregation_dict["list"]
-            #print(aggregations)
+
         else:
             aggregations = None
         grouping_attrs = [group["field"] for group in groupings]
@@ -318,8 +293,8 @@ class Repository:
 
         df_gb= df.groupby(grouping_attrs)
 
-        agg_dict={'number':len} #all group-by gets the count by default in REACT-UI
-        if aggregations: #Custom aggregations: sum,count,avg,min,max
+        agg_dict={'number':len}
+        if aggregations:
             for agg in aggregations:
                 agg_dict[agg['field']] = AGG_MAP.get(agg['type'])
 
@@ -355,7 +330,7 @@ class Repository:
         action_row= self.get_action_by_id(action_id)
         action_type = action_row.action_type
         action_params = action_row.action_params
-        #print(action_params)
+
         if type(action_params) == str:
             action_params=get_dict(action_params)
         action_bag=set()
@@ -381,10 +356,9 @@ class Repository:
 
         dd1={"data_layer": d1.data_layer, "granularity_layer": d1.granularity_layer}
         dd2={"data_layer": d2.data_layer, "granularity_layer": d2.granularity_layer}
-        #try:
+
         return display_distance(dd1,dd2)
-        #except:
-        #    return None
+
 
     def action_distance(self, id1, id2):
         a1 = self.__create_action_bag(id1)

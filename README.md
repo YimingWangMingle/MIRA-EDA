@@ -107,28 +107,6 @@ The replacement method IDs are `encoder_stats_pca`, `encoder_vae`, `encoder_froz
 
 `python -B verify.py` checks source, command arguments, file hashes, and bundled data. `python -B verify.py --runtime` also checks the pinned Linux runtime and model updates. To run the regression checks, install `pytest` and run `python -B -m pytest tests -q`.
 
-## License and attribution
-
-The project license is reproduced below. The `hierarchy_pos` implementation in the two ATENA evaluation utility modules is adapted from Joel's answer at https://stackoverflow.com/a/29597209/2966723, under Creative Commons Attribution-Share Alike, as attributed in the original source. Source comments and documentation strings have been consolidated or removed in this distribution.
-
-MIT License
-
-Copyright (c) 2021 Aurélien Personnaz
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.

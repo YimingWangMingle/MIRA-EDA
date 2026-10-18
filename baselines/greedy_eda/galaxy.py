@@ -1,8 +1,11 @@
+from revision_support.query_service import shared_query_run, set_query_report_path
+from revision_support.query_config import add_query_arguments
 import argparse
 import csv
 import json
 import os
 import random
+from pathlib import Path
 
 import numpy as np
 
@@ -182,11 +185,8 @@ def run_worker(worker_args):
 
             for step in range(1, int(args.steps) + 1):
                 input_set_id = helpers.safe_set_id(current_dataset, default=-1)
-                legal_ids = legal_operation_ids(
-                    current_dataset,
-                    action_types,
-                    helpers.is_operator_valid,
-                )
+                legal_ids = np.flatnonzero(action_manager.fix_possible_operation_action_probs(
+                    current_dataset, np.ones(len(action_types)))).tolist()
                 operation_action = choose_operation(
                     legal_ids,
                     family_by_action,
@@ -373,7 +373,9 @@ def _merge_results(args, results):
     }
 
 
+@shared_query_run
 def run(args):
+    set_query_report_path(Path(f"{args.output_prefix}_query_scheduler.json"))
     tasks = [
         (args, worker_id, start, end)
         for worker_id, start, end in episode_ranges(args.episodes, args.workers)
@@ -387,7 +389,7 @@ def run(args):
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        description="Run the target-blind Greedy EDA baseline on Galaxy."
+        description=''
     )
     parser.add_argument("--baseline", choices=["greedy_eda"], default="greedy_eda")
     parser.add_argument("--target_set", type=str, default=None)
@@ -400,6 +402,7 @@ def build_parser():
     parser.add_argument("--target_samples_per_file", type=int, default=100)
     parser.add_argument("--output_prefix", type=str, default="greedy_eda")
     parser.add_argument("--write_partial", action="store_true")
+    add_query_arguments(parser)
     return parser
 
 

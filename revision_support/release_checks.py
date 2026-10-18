@@ -106,7 +106,7 @@ def check_models():
                 np.testing.assert_allclose(model.embed(states),
                     model.encoder.predict(states, verbose=0), rtol=1e-5, atol=1e-6)
                 model.train_batch(states, model.action_features([0]*16, [1]*16),
-                                  [1.]*16, states[::-1].copy())
+                                  [1.]*16, states[::-1].copy(), valid_action_masks=np.ones((16, 4), bool))
                 if not np.isfinite(model.embed(states)).all():
                     raise ValueError('Nonfinite encoder output: '+variant)
                 if variant in ('stats_pca', 'frozen_random'):

@@ -17,7 +17,7 @@ def validate_args(args):
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
-        description="Run standalone MIRA on ATENA."
+        description=''
     )
     parser.add_argument("--schema", choices=["flights", "cyber"], required=True)
     parser.add_argument("--dataset_number", type=int, required=True)
@@ -58,7 +58,7 @@ def parse_args(argv=None):
 
 
     args = parser.parse_args(argv)
-    args.mira_core_version = "mira_grounded_latent_v2"
+    args.mira_core_version = "mira_reference_wasserstein_v3"
     args.method = METHOD
     args.policy_protocol = "final_online_policy"
     try:

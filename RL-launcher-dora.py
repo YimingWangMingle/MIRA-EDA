@@ -7,6 +7,9 @@ from app.pipelines.pipeline_precalculated_sets import PipelineWithPrecalculatedS
 from baselines.dora.A3C_2_actors.A3C import Agent
 
 
+from revision_support.query_service import shared_query_run
+
+@shared_query_run
 def main():
     ray.init(ignore_reinit_error=True)
 

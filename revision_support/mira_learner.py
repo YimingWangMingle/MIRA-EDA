@@ -22,7 +22,7 @@ class RepresentationLearner:
         self.worker_reward_moments = {}
         self.latest = dict(phi_loss=0.,dyn_loss=0.,prediction_error=0.,mean_d_phi=0.,
             mean_metric_target=0.,analytical_distance=0.,task_reward_difference=0.,
-            successor_distance=0.,representation_updates=0)
+            successor_distance=0.,reward_prediction_loss=0.,representation_updates=0)
         self.thread = threading.Thread(target=self._run, name='mira-representation-learner', daemon=True)
         self.thread.start()
 
@@ -30,11 +30,33 @@ class RepresentationLearner:
         if self.error is not None:
             raise RuntimeError('MIRA representation learner failed') from self.error
 
-    def submit(self, states, actions, task_rewards, next_states):
+    def submit(self, states, actions, task_rewards, next_states, valid_action_masks,
+               state_keys=None, next_terminals=None, next_state_keys=None):
         self.check()
         if self.closed:
             raise RuntimeError('MIRA learner is closed')
-        batch = tuple(np.asarray(x).copy() for x in (states,actions,task_rewards,next_states))
+        states, actions, following = [np.asarray(x).copy() for x in (states, actions, next_states)]
+        n = len(states)
+        masks = np.asarray(valid_action_masks, dtype=bool)
+        if masks.shape != (n, self.module.reference_action_dim) or not masks.any(axis=1).all():
+            raise ValueError('Executed transitions require nonempty legal-action masks')
+        rewards = np.asarray(task_rewards, dtype=np.float32).reshape(n, 1)
+        if state_keys is None:
+            from .reference_policy import state_identity
+            state_keys = [state_identity(s.tolist(), m.tolist()) for s, m in zip(states, masks)]
+        keys = np.asarray(state_keys, dtype='S64').reshape(n)
+        terminal = np.zeros(n, bool)
+        done = np.zeros(n, bool) if next_terminals is None else np.asarray(next_terminals, bool).reshape(n)
+        batch = [states, actions, rewards, following, masks, terminal, keys]
+        if done.any():
+            if next_state_keys is None:
+                from .reference_policy import state_identity
+                next_state_keys = [state_identity(s.tolist(), 'absorbing') for s in following]
+            terminal_rows = [following[done], np.zeros_like(actions[done]), np.zeros_like(rewards[done]),
+                             following[done], np.zeros_like(masks[done]), np.ones(done.sum(), bool),
+                             np.asarray(next_state_keys, dtype='S64').reshape(n)[done]]
+            batch = [np.concatenate([left, right]) for left, right in zip(batch, terminal_rows)]
+        batch = tuple(batch)
         while True:
             self.check()
             try:
@@ -44,7 +66,7 @@ class RepresentationLearner:
                 continue
 
     def _store(self, batch):
-        if len({len(x) for x in batch}) != 1 or not all(np.isfinite(x).all() for x in batch):
+        if len({len(x) for x in batch}) != 1 or not all(np.isfinite(x).all() for x in batch[:-1]):
             raise ValueError('Invalid representation replay batch')
         if self.arrays is None:
             self.arrays = [np.empty((self.capacity,)+x.shape[1:],dtype=x.dtype) for x in batch]
@@ -67,11 +89,12 @@ class RepresentationLearner:
                     self._store(batch)
                     if self.size >= self.min_size:
                         ids = self.rng.choice(self.size,min(self.size,self.batch_size),replace=False)
-                        states, actions, rewards, following = [a[ids] for a in self.arrays]
+                        states, actions, rewards, following, masks, terminals, keys = [a[ids] for a in self.arrays]
                         if hasattr(self.module,'encode_actions'):
                             actions = self.module.encode_actions(actions)
                         self.latest = self.module.train_batch(states,actions,rewards,following,
-                            pair_indices=self.rng.permutation(len(ids)),**self.options)
+                            pair_indices=self.rng.permutation(len(ids)), valid_action_masks=masks,
+                            terminals=terminals, state_keys=keys, reference_rng=self.rng, **self.options)
             except BaseException as error:
                 self.error = error
             finally:

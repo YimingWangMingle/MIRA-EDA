@@ -24,6 +24,9 @@ def _select_candidate_set_ids(
     reference_set_size,
     candidate_slots,
 ):
+    from revision_support.query_config import heuristic_pruning_enabled
+    if not heuristic_pruning_enabled():
+        return [int(set_id) for set_id in all_candidate_set_ids]
     if len(all_candidate_set_ids) <= int(candidate_slots):
         return [int(set_id) for set_id in all_candidate_set_ids]
 
@@ -99,6 +102,7 @@ def _select_candidate_set_ids(
     return selected
 
 def build_candidate_view(universe, actions, current_set_id, candidate_slots=10):
+    capacity = max(int(candidate_slots), len(actions))
     all_set_ids, grouped, family_by_set = _candidate_groups(
         universe,
         actions,
@@ -112,7 +116,9 @@ def build_candidate_view(universe, actions, current_set_id, candidate_slots=10):
         candidate_slots=candidate_slots,
     )
     action_ids = [list(grouped[int(set_id)]) for set_id in selected]
-    while len(selected) < int(candidate_slots):
+    while len(selected) < capacity:
         selected.append(-1)
         action_ids.append([])
-    return selected[: int(candidate_slots)], action_ids[: int(candidate_slots)]
+    if len(selected) > capacity:
+        raise ValueError('Candidate capacity cannot truncate valid successor regions')
+    return selected, action_ids

@@ -8,8 +8,10 @@ from app.pipelines.pipeline_precalculated_sets import PipelineWithPrecalculatedS
 from baselines.pure_a3c.A3C_2_actors.A3C import Agent, build_parser
 
 
-def main():
-    args = build_parser().parse_args()
+from revision_support.query_service import shared_query_run
+
+@shared_query_run
+def execute(args):
     ray.init(ignore_reinit_error=True)
 
     env_name = "pipeline"
@@ -35,6 +37,12 @@ def main():
     agent.train(args.episodes)
     ray.shutdown()
 
+
+def main():
+    from revision_support.query_config import configure_query_processing
+    args = build_parser().parse_args()
+    configure_query_processing(args, method="pure_a3c")
+    execute(args)
 
 if __name__ == "__main__":
     main()

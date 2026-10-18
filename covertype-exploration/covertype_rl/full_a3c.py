@@ -8,6 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from revision_support.query_service import shared_query_run, set_query_report_path
+from revision_support.query_config import query_actor
 from revision_support.covertype_defaults import configure_covertype_runtime
 
 configure_covertype_runtime()
@@ -187,7 +189,8 @@ class CovertypeDualActorEnvironment:
         self.universe = universe
         self.actions = actions
         self.episode_steps = int(episode_steps)
-        self.candidate_slots = int(candidate_slots)
+        self.heuristic_candidate_limit = int(candidate_slots)
+        self.candidate_slots = max(int(candidate_slots), len(actions))
         self.base_env = FixedSetEnvironment(universe, actions, episode_steps=episode_steps, seed=seed)
         self.set_state_dim = self.candidate_slots * self.universe.state_dim
         self.operation_state_dim = self.set_state_dim + self.universe.state_dim
@@ -238,8 +241,8 @@ class CovertypeDualActorEnvironment:
         while len(candidate_set_ids) < self.candidate_slots:
             candidate_set_ids.append(-1)
             candidate_action_ids.append([])
-        candidate_set_ids = candidate_set_ids[: self.candidate_slots]
-        candidate_action_ids = candidate_action_ids[: self.candidate_slots]
+        if len(candidate_set_ids) > self.candidate_slots:
+            raise ValueError('Candidate storage would truncate the exact action space')
 
         self.candidate_set_ids = candidate_set_ids
         self.candidate_action_ids = candidate_action_ids
@@ -259,7 +262,7 @@ class CovertypeDualActorEnvironment:
         from covertype_rl.candidates import _select_candidate_set_ids
         size = self.base_env.previous_set_size if reference_set_size is None else reference_set_size
         return _select_candidate_set_ids(self.universe, all_candidate_set_ids, family_by_set,
-                                         size, self.candidate_slots)
+                                         size, self.heuristic_candidate_limit)
 
 
     def fix_possible_set_action_probs(self, probs):
@@ -523,11 +526,14 @@ class ParameterServer:
         return unassisted_direction(self, 'covertype')
 
 
-    def update_and_sample_mira_batch(self, states, set_actions, operation_actions, task_rewards, next_states, episode):
+    def update_and_sample_mira_batch(self, states, set_actions, operation_actions, task_rewards, next_states, episode, metadata):
 
         actions = np.column_stack([np.asarray(set_actions).reshape(-1), np.asarray(operation_actions).reshape(-1)])
         from revision_support.mira_task import replay_task_reward
-        return self.mira_learner.submit(states, actions, replay_task_reward(task_rewards, self.args), next_states)
+        return self.mira_learner.submit(states, actions, replay_task_reward(task_rewards, self.args), next_states,
+            valid_action_masks=np.asarray([m[0] for m in metadata], dtype=bool),
+            state_keys=[m[1] for m in metadata], next_terminals=[m[2] for m in metadata],
+            next_state_keys=[m[3] for m in metadata])
 
     def save_mira_snapshot(self, directory):
         self.mira_learner.check()
@@ -841,6 +847,7 @@ class WorkerAgent:
         mira_set_action_batch = []
         mira_operation_action_batch = []
         mira_task_reward_batch = []
+        mira_metadata_batch = []
         episode_set_op_counters = {}
         episode_history_phi = []
         if self.is_mira:
@@ -889,7 +896,13 @@ class WorkerAgent:
                 fallback_action=0,
             )
 
+            if self.mira is not None:
+                from revision_support.transition_metadata import dual_reference_metadata
+                reference_mask, state_key = dual_reference_metadata(self.env)
             next_set_state, r_ext, r_int, done, set_op_pair, metrics = self.env.step(set_action, operation_action)
+            if self.mira is not None:
+                _, next_state_key = dual_reference_metadata(self.env)
+                mira_metadata_batch.append((reference_mask, state_key, done, next_state_key))
             next_set_state = self.env.set_state
             r_ext = float(r_ext)
             r_int = float(r_int)
@@ -976,7 +989,7 @@ class WorkerAgent:
                     mira_stats = ray.get(self.ps.update_and_sample_mira_batch.remote(
                         self.list_to_batch(mira_state_batch), self.list_to_batch(mira_set_action_batch),
                         self.list_to_batch(mira_operation_action_batch), self.list_to_batch(mira_task_reward_batch),
-                        self.list_to_batch(mira_next_state_batch), episode))
+                        self.list_to_batch(mira_next_state_batch), episode, mira_metadata_batch))
                     totals['mira_pair_source'] = 'async_replay'
                     totals['mira_replay_size'] = mira_stats['replay_size']
                     for key in ('phi_loss','dyn_loss','prediction_error','mean_d_phi','mean_metric_target'):
@@ -1006,6 +1019,7 @@ class WorkerAgent:
                 mira_set_action_batch = []
                 mira_operation_action_batch = []
                 mira_task_reward_batch = []
+                mira_metadata_batch = []
 
             set_state = next_set_state
             set_action_steps = next_set_action_steps
@@ -1048,7 +1062,7 @@ class WorkerAgent:
 
 def build_parser():
     from revision_support.covertype_defaults import CovertypeArgumentParser
-    parser = CovertypeArgumentParser(description="Run Covertype full Ray/TensorFlow dual-actor A3C baselines.")
+    parser = CovertypeArgumentParser(description='')
     parser.add_argument("--baseline", choices=sorted(BASELINES), default="mira")
     parser.add_argument("--csv_path", default="covertype.csv")
     parser.add_argument("--target_set", default=None)
@@ -1110,11 +1124,12 @@ def build_parser():
     return parser
 
 
+@shared_query_run
 def run(args):
     if args.baseline in MIRA_BASELINES:
-        args.mira_core_version = "mira_grounded_latent_v2"
+        args.mira_core_version = "mira_reference_wasserstein_v3"
         if args.resume_model_dir or args.resume_start_episode:
-            raise ValueError("MIRA v2 requires a fresh run; checkpoint continuation is not supported")
+            raise ValueError("MIRA v3 requires a fresh run; checkpoint continuation is not supported")
     validate_ablation_args(args)
     if args.baseline == "mira_no_ext" and args.resume_model_dir:
         raise ValueError('MIRA w/o Ext requires fresh weights; a checkpoint may contain task reward information')
@@ -1139,6 +1154,8 @@ def run(args):
         args.name = args.output_prefix or f"{args.baseline}_seed{args.seed}_full_a3c"
 
     data = load_covertype(csv_path, n_bins=args.n_bins)
+    from revision_support.query_clients import register_covertype_backend
+    register_covertype_backend(data)
     target_items, target_path = resolve_target_set(
         data,
         root_dir=root_dir,
@@ -1167,6 +1184,7 @@ def run(args):
         output_dir = root_dir / output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     args.output_dir = str(output_dir)
+    set_query_report_path(output_dir / (args.output_prefix or args.name) / "query_scheduler.json")
     if ablation_label(args):
 
 
@@ -1187,6 +1205,8 @@ def run(args):
         candidate_slots=args.candidate_slots,
     )
     dummy_env.reset()
+    args.candidate_capacity = int(dummy_env.candidate_slots)
+    args.heuristic_candidate_limit = int(dummy_env.heuristic_candidate_limit)
     args.mira_statistic_indices = getattr(dummy_env, 'statistic_indices', [])
     args.base_set_state_dim = int(dummy_env.set_state_dim)
     args.base_operation_state_dim = int(dummy_env.operation_state_dim)
@@ -1214,7 +1234,7 @@ def run(args):
     pca_records = prepare_in_budget(dummy_env, args, 'covertype',
         output_dir / (args.output_prefix or args.name))
     args_dict = vars(args).copy()
-    ps = ParameterServer.remote(
+    ps = query_actor(ParameterServer).remote(
         set_state_dim,
         operation_state_dim,
         dummy_env.set_action_dim,
@@ -1226,7 +1246,7 @@ def run(args):
         pca_records = []
     action_labels = [action.label for action in actions]
     workers = [
-        WorkerAgent.remote(str(universe_dir), action_labels, ps, worker_id, args_dict)
+        query_actor(WorkerAgent).remote(str(universe_dir), action_labels, ps, worker_id, args_dict)
         for worker_id in range(max(1, int(args.workers)))
     ]
     complete_training(ray, ps, workers, [worker.train_loop.remote() for worker in workers])

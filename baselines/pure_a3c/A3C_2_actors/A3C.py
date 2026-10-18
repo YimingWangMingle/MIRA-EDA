@@ -1,3 +1,5 @@
+from revision_support.query_config import add_query_arguments, configure_query_processing, query_actor
+from revision_support.training_runtime import seed_training
 import argparse
 import csv
 import json
@@ -23,7 +25,7 @@ tf.keras.backend.set_floatx("float64")
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(description="Run Galaxy pure dual-actor A3C baseline.")
+    parser = argparse.ArgumentParser(description='')
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--update_interval", type=int, default=20)
     parser.add_argument("--actor_lr", type=float, default=0.00003)
@@ -51,10 +53,12 @@ def build_parser():
         type=str,
         default=["by_facet", "by_superset", "by_neighbors", "by_distribution"],
     )
+    add_query_arguments(parser)
     return parser
 
 
 def prepare_args(args):
+    configure_query_processing(args, method="pure_a3c")
     args.method = "pure_a3c"
     if args.resume_step is not None:
         args.resume = True
@@ -62,6 +66,8 @@ def prepare_args(args):
         stamp = datetime.now().strftime("%m%d%Y_%H%M%S")
         args.name = f"{args.mode}-pure-a3c-lstm-{args.lstm_steps}-{stamp}"
     args.result_dir = str(Path(args.output_dir) / args.name)
+    from revision_support.query_service import set_query_report_path
+    set_query_report_path(Path(args.result_dir) / 'query_scheduler.json')
     Path(args.result_dir).mkdir(parents=True, exist_ok=True)
     Path("saved_models", args.name).mkdir(parents=True, exist_ok=True)
     info_path = Path("saved_models") / args.name / "info.json"
@@ -84,6 +90,7 @@ def prepare_args(args):
 @ray.remote
 class ParameterServer:
     def __init__(self, set_state_dim, operation_state_dim, set_action_dim, operation_action_dim, args):
+        seed_training(args.seed)
         physical_devices = tf.config.list_physical_devices("GPU")
         if physical_devices:
             for device in physical_devices:
@@ -275,6 +282,7 @@ class ParameterServer:
 @ray.remote
 class WorkerAgent:
     def __init__(self, pipeline, ps_handle, agent_id, args, episode_steps):
+        seed_training(args.seed, agent_id)
         physical_devices = tf.config.list_physical_devices("GPU")
         if physical_devices:
             for device in physical_devices:
@@ -525,7 +533,7 @@ class Agent:
     def train(self, max_episodes=None):
         max_episodes = int(self.args.episodes if max_episodes is None else max_episodes)
         self.args.episodes = max_episodes
-        ps = ParameterServer.remote(
+        ps = query_actor(ParameterServer).remote(
             self.set_state_dim,
             self.operation_state_dim,
             self.set_action_dim,
@@ -533,7 +541,7 @@ class Agent:
             self.args,
         )
         workers = [
-            WorkerAgent.remote(self.pipeline, ps, worker_id, self.args, self.episode_steps)
+            query_actor(WorkerAgent).remote(self.pipeline, ps, worker_id, self.args, self.episode_steps)
             for worker_id in range(self.num_workers)
         ]
         complete_training(ray, ps, workers, [worker.train_loop.remote() for worker in workers])

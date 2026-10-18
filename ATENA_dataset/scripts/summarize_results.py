@@ -138,20 +138,20 @@ def _load_metrics_csv(path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Summarize formal evaluation metric files.")
+    parser = argparse.ArgumentParser(description='')
     parser.add_argument("--root", default="results")
     parser.add_argument("--output", default="results/atena_baselines_summary.csv")
     parser.add_argument(
         "--seed",
         default="0",
-        help="Seed directory to summarize, e.g. 0 for seed0. Use 'all' only for optional robustness runs.",
+        help='',
     )
     parser.add_argument(
         "--row-source",
         dest="row_source",
         choices=["last", "final_json"],
         default="last",
-        help="Use the last eval_metrics.csv row or final_metrics.json.",
+        help='',
     )
     args = parser.parse_args()
 

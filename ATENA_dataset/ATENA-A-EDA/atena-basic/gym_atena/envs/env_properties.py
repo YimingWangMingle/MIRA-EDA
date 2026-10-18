@@ -338,6 +338,12 @@ class EnvProp(object):
 
     def calc_display_vector(self, dataset_df, state, memo=None, dataset_number=None, step_number=None,
                             states_hist=None, obs_hist=None, len_single_display_vec=None):
+        from revision_support.query_service import service_available
+        shared_queries = service_available()
+        if shared_queries:
+
+
+            memo = None
         if memo is not None:
             result = memo.get((dataset_number, state))
             if result is not None:
@@ -366,9 +372,13 @@ class EnvProp(object):
                 result = obs, disp_tpl, dfs
                 return result
 
-        fdf, gdf, adf = self.get_raw_data(dataset_df, state)
-        data_layer = self.calc_data_layer(fdf)
-        gran_layer = self.calc_gran_layer(gdf, adf)
+        if shared_queries:
+            from revision_support.query_clients import native_display
+            fdf, adf, data_layer, gran_layer = native_display(self, dataset_df, state)
+        else:
+            fdf, gdf, adf = self.get_raw_data(dataset_df, state)
+            data_layer = self.calc_data_layer(fdf)
+            gran_layer = self.calc_gran_layer(gdf, adf)
 
         vlist = []
         for d in data_layer.values():

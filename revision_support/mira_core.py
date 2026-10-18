@@ -7,8 +7,7 @@ from tensorflow.keras.layers import Dense, Input
 
 from .inference import predict
 from .representations import RepresentationVariants
-
-CORE_VERSION = 'mira_grounded_latent_v2'
+from .reference_policy import CORE_VERSION, sample_reference_actions, empirical_wasserstein
 
 
 def finite_states(values, dimension):
@@ -83,11 +82,13 @@ def grounded_target(rewards, statistics, pairs, successor_distance, gamma, lambd
 class MIRACore(RepresentationVariants):
     def __init__(self, state_dim, action_dim, latent_dim=16, hidden=256, lr=3e-4,
                  target_tau=.01, statistic_indices=None, lambda_ana=1., mc_samples=4,
-                 encoder_variant='learned', encoder_pca_path=None, encoder_vae_kl=.001):
+                 encoder_variant='learned', encoder_pca_path=None, encoder_vae_kl=.001,
+                 task_reward_enabled=True):
         self.state_dim, self.action_dim = int(state_dim), int(action_dim)
         self.latent_dim, self.dense_units = int(latent_dim), int(hidden)
         self.target_tau = float(target_tau)
         self.lambda_ana, self.mc_samples = float(lambda_ana), int(mc_samples)
+        self.task_reward_enabled = bool(task_reward_enabled)
         if not np.isfinite(self.lambda_ana) or self.lambda_ana <= 0 or self.mc_samples < 1:
             raise ValueError('MIRA requires lambda_ana > 0 and mc_samples >= 1')
         if not np.isfinite(self.target_tau) or not 0. < self.target_tau <= 1.:
@@ -105,9 +106,16 @@ class MIRACore(RepresentationVariants):
             Input((self.latent_dim+self.action_dim,), dtype=tf.float32),
             Dense(hidden, activation='relu', dtype=tf.float32),
             Dense(hidden, activation='relu', dtype=tf.float32),
-            Dense(2*self.latent_dim, dtype=tf.float32)])
+            Dense(self.latent_dim, dtype=tf.float32)])
+        self.reward_predictor = (tf.keras.Sequential([
+            Input((self.latent_dim+self.action_dim,), dtype=tf.float32),
+            Dense(hidden, activation='relu', dtype=tf.float32),
+            Dense(hidden, activation='relu', dtype=tf.float32),
+            Dense(1, dtype=tf.float32)]) if self.task_reward_enabled else None)
         self.encoder_opt = tf.keras.optimizers.Adam(float(lr))
         self.dynamics_opt = tf.keras.optimizers.Adam(float(lr))
+        self.reward_opt = tf.keras.optimizers.Adam(float(lr)) if self.task_reward_enabled else None
+        self.reference_rng = np.random.default_rng(1729)
         self.reward_moments = RunningMoments()
         self.episode_moments = RunningMoments()
         self.reward_encoder = None
@@ -154,43 +162,82 @@ class MIRACore(RepresentationVariants):
         self.last_raw_bonus, self.last_normalized_bonus = raw, normalized
         return normalized
 
-    def distribution(self, embedding, actions, training=False):
-        output = self.dynamics(tf.concat([embedding, actions], axis=1), training=training)
-        mean, log_std = tf.split(output, 2, axis=1)
-        return mean, tf.clip_by_value(log_std, -5., 2.)
+    @property
+    def reference_action_dim(self):
+        return self.action_dim
 
-    def successor_discrepancy(self, mean, log_std, pairs, samples=None):
-        count = int(samples or self.mc_samples)
-        shape = tf.concat([[count], tf.shape(mean)], axis=0)
-        left = mean[None] + tf.exp(log_std)[None]*tf.random.normal(shape)
+    def encode_reference_actions(self, actions):
+        return np.eye(self.action_dim, dtype=np.float32)[np.asarray(actions, dtype=np.int64)]
 
-        right = tf.gather(mean, pairs)[None] + tf.exp(tf.gather(log_std, pairs))[None]*tf.random.normal(shape)
-        return tf.reduce_mean(tf.norm(left-right, axis=2), axis=0)[:, None]
+    def reference_predictions(self, states, valid_action_masks, state_keys=None, terminals=None, rng=None):
+        states = finite_states(states, self.state_dim)
+        masks = np.asarray(valid_action_masks, dtype=bool)
+        if masks.shape != (len(states), self.reference_action_dim):
+            raise ValueError('Reference masks do not match the declared action space')
+        terminals = np.zeros(len(states), bool) if terminals is None else np.asarray(terminals, bool).reshape(-1)
+        if state_keys is None:
+            state_keys = [(s.tobytes(), m.tobytes(), bool(t)) for s, m, t in zip(states, masks, terminals)]
+        seen = {}
+        for index, key in enumerate(state_keys):
+            if key in seen and not np.array_equal(states[index], states[seen[key]]):
+                raise ValueError('Different descriptors have the same complete-state identity')
+            seen[key] = index
+        ids = sample_reference_actions(masks, state_keys, terminals, self.mc_samples,
+                                       self.reference_rng if rng is None else rng)
+        embedding = self.embed(states)
+        successors = np.repeat(embedding[:, None, :], self.mc_samples, axis=1)
+        rewards = np.zeros((len(states), 1), np.float32)
+        active = np.flatnonzero(~terminals)
+        if active.size:
+            features = self.encode_reference_actions(ids[active].reshape(-1))
+            inputs = tf.convert_to_tensor(np.concatenate([
+                np.repeat(embedding[active], self.mc_samples, axis=0), features], axis=1), tf.float32)
+            successors[active] = self.dynamics(inputs, training=False).numpy().reshape(-1, self.mc_samples, self.latent_dim)
+            if self.task_reward_enabled:
+                rewards[active] = self.reward_predictor(inputs, training=False).numpy().reshape(-1, self.mc_samples).mean(axis=1, keepdims=True)
+        return successors, rewards, ids
 
     def train_batch(self, states, action_features, task_rewards, next_states,
-                    pair_indices=None, gamma=.99, phi_weight=1., dyn_weight=1.):
+                    pair_indices=None, gamma=.99, phi_weight=1., dyn_weight=1.,
+                    valid_action_masks=None, state_keys=None, terminals=None, reference_rng=None):
         states = tf.convert_to_tensor(finite_states(states, self.state_dim))
         following = tf.convert_to_tensor(finite_states(next_states, self.state_dim))
         actions = tf.convert_to_tensor(action_features, tf.float32)
         n = int(states.shape[0])
         if n < 2:
             raise ValueError('Representation learner requires at least two transitions')
+        if valid_action_masks is None:
+            raise ValueError('Representation learning requires logged legal-action masks')
+        terminal = np.zeros(n, bool) if terminals is None else np.asarray(terminals, bool).reshape(-1)
+        active = np.flatnonzero(~terminal)
         pairs = (tf.random.shuffle(tf.range(n)) if pair_indices is None
                  else tf.convert_to_tensor(pair_indices, tf.int32))
         current_latent = tf.stop_gradient(self.encoder(states, training=False))
         next_latent = tf.stop_gradient(self.encoder(following, training=False))
-        with tf.GradientTape() as tape:
-            mean, log_std = self.distribution(current_latent, actions, training=True)
-            nll = .5*tf.square((next_latent-mean)*tf.exp(-log_std)) + log_std + .5*np.log(2*np.pi)
-            dyn_loss = tf.reduce_mean(nll)
-            dyn_objective = float(dyn_weight)*dyn_loss
-        grads = tape.gradient(dyn_objective, self.dynamics.trainable_variables)
-        self._apply(self.dynamics_opt, grads, self.dynamics.trainable_variables)
+        dyn_loss = reward_loss = prediction_error = tf.constant(0., tf.float32)
+        if active.size:
+            inputs = tf.gather(tf.concat([current_latent, actions], axis=1), active)
+            expected = tf.gather(next_latent, active)
+            with tf.GradientTape() as tape:
+                prediction = self.dynamics(inputs, training=True)
+                dyn_loss = tf.reduce_mean(tf.reduce_sum(tf.square(prediction-expected), axis=1))
+                dyn_objective = float(dyn_weight)*dyn_loss
+            self._apply(self.dynamics_opt, tape.gradient(dyn_objective, self.dynamics.trainable_variables),
+                        self.dynamics.trainable_variables)
+            prediction_error = tf.reduce_mean(tf.norm(expected-prediction, axis=1))
+            if self.task_reward_enabled:
+                observed = tf.gather(tf.reshape(tf.convert_to_tensor(task_rewards, tf.float32), (-1, 1)), active)
+                with tf.GradientTape() as tape:
+                    predicted_reward = self.reward_predictor(inputs, training=True)
+                    reward_loss = tf.reduce_mean(tf.square(predicted_reward-observed))
+                self._apply(self.reward_opt, tape.gradient(reward_loss, self.reward_predictor.trainable_variables),
+                            self.reward_predictor.trainable_variables)
 
-        mean, log_std = self.distribution(current_latent, actions)
-        successor = self.successor_discrepancy(mean, log_std, pairs)
+        samples, expected_rewards, _ = self.reference_predictions(states.numpy(), valid_action_masks,
+            state_keys, terminal, reference_rng)
+        successor = tf.convert_to_tensor(empirical_wasserstein(samples, pairs.numpy()))
         statistics = tf.gather(states, self.statistic_indices, axis=1)
-        target, components = grounded_target(task_rewards, statistics, pairs, successor, gamma, self.lambda_ana)
+        target, components = grounded_target(expected_rewards, statistics, pairs, successor, gamma, self.lambda_ana)
         with tf.GradientTape() as tape:
             phi = self.encoder(states, training=True)
             squared = tf.reduce_sum(tf.square(phi-tf.gather(phi, pairs)), axis=1, keepdims=True)
@@ -204,7 +251,7 @@ class MIRACore(RepresentationVariants):
         self.soft_update_target()
         self.version += 1
         return dict(phi_loss=float(phi_loss.numpy()), dyn_loss=float(dyn_loss.numpy()),
-            prediction_error=float(tf.reduce_mean(tf.norm(next_latent-mean, axis=1)).numpy()),
+            reward_prediction_loss=float(reward_loss.numpy()), prediction_error=float(prediction_error.numpy()),
             mean_d_phi=float(tf.reduce_mean(distance).numpy()), mean_metric_target=float(tf.reduce_mean(target).numpy()),
             analytical_distance=float(tf.reduce_mean(components['analytical']).numpy()),
             task_reward_difference=float(tf.reduce_mean(components['reward_difference']).numpy()),
@@ -229,6 +276,8 @@ class MIRACore(RepresentationVariants):
         return dict(self.representation_metadata(), core_version=CORE_VERSION,
             encoder=self.encoder.get_weights(), target_encoder=self.target_encoder.get_weights(),
             dynamics=self.dynamics.get_weights(), version=self.version,
+            reward_predictor=self.reward_predictor.get_weights() if self.task_reward_enabled else None,
+            task_reward_enabled=self.task_reward_enabled,
             statistic_indices=self.statistic_indices.tolist(), lambda_ana=self.lambda_ana, mc_samples=self.mc_samples)
 
     def set_weights(self, weights):
@@ -238,10 +287,14 @@ class MIRACore(RepresentationVariants):
             raise ValueError('MIRA descriptor schema differs')
         if weights['lambda_ana'] != self.lambda_ana or weights['mc_samples'] != self.mc_samples:
             raise ValueError('MIRA core configuration differs')
+        if weights['task_reward_enabled'] != self.task_reward_enabled:
+            raise ValueError('MIRA task-feedback configuration differs')
         self.restore_representation_metadata(weights)
         self.encoder.set_weights(weights['encoder'])
         self.target_encoder.set_weights(weights['target_encoder'])
         self.dynamics.set_weights(weights['dynamics'])
+        if self.task_reward_enabled:
+            self.reward_predictor.set_weights(weights['reward_predictor'])
         self.version = int(weights['version'])
 
     def save_models(self, directory):
@@ -251,8 +304,13 @@ class MIRACore(RepresentationVariants):
         self.encoder.save(directory/'mira_encoder')
         self.target_encoder.save(directory/'mira_target_encoder')
         self.dynamics.save(directory/'mira_dynamics')
+        if self.task_reward_enabled:
+            self.reward_predictor.save(directory/'mira_reward_predictor')
         (directory/'mira_core.json').write_text(json.dumps(dict(core_version=CORE_VERSION,
             statistic_indices=self.statistic_indices.tolist(), lambda_ana=self.lambda_ana,
-            mc_samples=self.mc_samples, log_std_bounds=[-5., 2.], version=self.version,
+            mc_samples=self.mc_samples, reference_policy='uniform_valid_actions',
+            successor_distance='empirical_wasserstein_1_euclidean_minimum_cost_matching',
+            dynamics_loss='mean_squared_euclidean_error', task_reward_enabled=self.task_reward_enabled,
+            version=self.version,
             reward_normalization='running population moments, epsilon=1e-6; normalize before update',
             reward_moments=self.reward_moments.state()), indent=2), encoding='utf8')

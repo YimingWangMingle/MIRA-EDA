@@ -9,6 +9,7 @@ from typing import Dict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from atena_common.costs import QueryCosts, session_cost_row, write_costs, write_session, average_random_rows
+from revision_support.query_service import shared_query_run, set_query_report_path, execution_options
 
 import numpy as np
 
@@ -49,6 +50,7 @@ def formal_final_row(metrics_rows):
     return dict(metrics_rows[-1]) if metrics_rows else None
 
 
+@shared_query_run
 def run_experiment(args):
     training_started = time.perf_counter()
     if args.method not in METHODS:
@@ -64,6 +66,8 @@ def run_experiment(args):
         / f"seed{args.seed}"
     )
     result_dir.mkdir(parents=True, exist_ok=False)
+    set_query_report_path(result_dir / 'query_scheduler.json')
+    args.query_execution = execution_options()
     write_json(result_dir / "config.json", vars(args))
 
     if args.method == "greedy":

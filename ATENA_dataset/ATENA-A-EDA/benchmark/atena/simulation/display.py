@@ -177,6 +177,10 @@ class DisplayCalculator(object):
         return self.calculate_display(state)[1]
 
     def calculate_display(self, state):
+        from revision_support.query_service import service_available
+        if service_available():
+            from revision_support.query_clients import benchmark_display
+            return benchmark_display(self, state)
         fdf, gdf, adf = self.get_raw_data(state)
         data_layer = self.calc_data_layer(fdf)
         gran_layer = self.calc_gran_layer(gdf, adf)

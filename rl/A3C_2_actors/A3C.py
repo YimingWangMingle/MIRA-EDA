@@ -1,3 +1,5 @@
+from revision_support.query_config import query_actor
+from revision_support.training_runtime import seed_training
 import argparse
 import csv
 import json
@@ -36,19 +38,19 @@ parser.add_argument('--workers', type=int, default=14)
 parser.add_argument('--episodes', type=int, default=1000)
 parser.add_argument('--steps', type=int, default=250)
 parser.add_argument('--strict_episode_budget', action='store_true', default=True,
-                    help='Reserve episodes centrally and fail on worker errors; prevent async overshoot')
+                    help='')
 parser.add_argument('--lstm_steps', type=int, default=5)
 parser.add_argument('--target_set', type=str, default=None)
 parser.add_argument('--target_seed', type=int, default=None)
 parser.add_argument('--seed', type=int, default=None,
-                    help="Training RNG seed; separate from target_seed. Async scheduling is not deterministic.")
+                    help='')
 add_ablation_arguments(parser)
 parser.add_argument('--target_samples_per_file', type=int, default=100)
 
-parser.add_argument('--alpha', type=float, default=0.5, help="Scaling factor for Exploration Reward")
-parser.add_argument('--w_ext', type=float, default=2.0, help="Weight for Extrinsic Reward")
-parser.add_argument('--w_mira', type=float, default=1.0, help="Weight for MIRA directional reward")
-parser.add_argument('--mira_bonus_clip', type=float, default=1.0, help="Clip absolute MIRA directional reward")
+parser.add_argument('--alpha', type=float, default=0.5, help='')
+parser.add_argument('--w_ext', type=float, default=2.0, help='')
+parser.add_argument('--w_mira', type=float, default=1.0, help='')
+parser.add_argument('--mira_bonus_clip', type=float, default=1.0, help='')
 parser.add_argument('--mira_latent_dim', type=int, default=16)
 parser.add_argument('--mira_lr', type=float, default=0.0003)
 parser.add_argument('--mira_dense_units', type=int, default=256)
@@ -61,7 +63,7 @@ parser.add_argument('--mira_pair_warmup_episodes', type=int, default=0, choices=
 parser.add_argument('--mira_replay_buffer_size', type=int, default=50000)
 parser.add_argument('--mira_phi_batch_size', type=int, default=128)
 parser.add_argument('--mira_min_replay_size', type=int, default=256)
-parser.add_argument('--mira_orthogonal_prob', type=float, default=0.0, choices=(0.0,), help="Compatibility option locked to zero; directions are uniform on the sphere")
+parser.add_argument('--mira_orthogonal_prob', type=float, default=0.0, choices=(0.0,), help='')
 
 parser.add_argument('--notes', type=str, default="")
 parser.add_argument('--mode', type=str, default="scattered")
@@ -76,9 +78,9 @@ parser.add_argument(
     default=["by_facet", "by_superset", "by_neighbors", "by_distribution"],
 )
 args = parser.parse_args()
-args.mira_core_version = "mira_grounded_latent_v2"
+args.mira_core_version = "mira_reference_wasserstein_v3"
 if args.resume or args.resume_step is not None:
-    raise ValueError("MIRA v2 requires a fresh run; checkpoint continuation is not supported")
+    raise ValueError("MIRA v3 requires a fresh run; checkpoint continuation is not supported")
 validate_ablation_args(args)
 args.no_ext_protocol = "shared_task_reward_without_external_feedback" if args.w_ext == 0 else None
 
@@ -97,6 +99,8 @@ if ablation_label(args):
         raise ValueError('Ablation output already exists; choose a fresh --name')
 
 args.result_dir = str(Path(args.output_dir) / args.name)
+from revision_support.query_service import set_query_report_path
+set_query_report_path(Path(args.result_dir) / 'query_scheduler.json')
 Path(args.result_dir).mkdir(parents=True, exist_ok=True)
 
 if not args.resume:
@@ -134,10 +138,7 @@ class ParameterServer:
                 tf.config.experimental.set_memory_growth(device, True)
 
         self.args = args
-        if args.seed is not None:
-            random.seed(args.seed)
-            np.random.seed(args.seed)
-            tf.random.set_seed(args.seed)
+        seed_training(args.seed)
         if args.w_ext == 0 and args.mode == "by_example":
             raise ValueError("Strict no-ext does not support target-derived example states")
         self.episodes_done = args.resume_step if args.resume_step is not None else 0
@@ -207,11 +208,14 @@ class ParameterServer:
         return unassisted_direction(self, 'galaxy')
 
 
-    def update_and_sample_mira_batch(self, states, set_actions, operation_actions, task_rewards, next_states, episode):
+    def update_and_sample_mira_batch(self, states, set_actions, operation_actions, task_rewards, next_states, episode, metadata):
 
         actions = np.column_stack([np.asarray(set_actions).reshape(-1), np.asarray(operation_actions).reshape(-1)])
         from revision_support.mira_task import replay_task_reward
-        return self.mira_learner.submit(states, actions, replay_task_reward(task_rewards, self.args), next_states)
+        return self.mira_learner.submit(states, actions, replay_task_reward(task_rewards, self.args), next_states,
+            valid_action_masks=np.asarray([m[0] for m in metadata], dtype=bool),
+            state_keys=[m[1] for m in metadata], next_terminals=[m[2] for m in metadata],
+            next_state_keys=[m[3] for m in metadata])
 
     def save_mira_snapshot(self, directory):
         self.mira_learner.check()
@@ -387,11 +391,7 @@ class WorkerAgent:
                 tf.config.experimental.set_memory_growth(device, True)
 
         self.agentId = agentId
-        if args.seed is not None:
-            worker_seed = int(args.seed) * 1000 + int(agentId)
-            random.seed(worker_seed)
-            np.random.seed(worker_seed)
-            tf.random.set_seed(worker_seed)
+        seed_training(args.seed, agentId)
         self.ps = ps_handle
         self.args = args
         self.episode_steps = episode_steps
@@ -524,6 +524,7 @@ class WorkerAgent:
             mira_set_action_batch = []
             mira_operation_action_batch = []
             mira_task_reward_batch = []
+            mira_metadata_batch = []
 
             ep_ext_score = 0
             ep_mira_score = 0
@@ -583,11 +584,15 @@ class WorkerAgent:
                     )
 
                     current_set_state = np.asarray(set_state, dtype=np.float32).reshape(-1)
+                    from revision_support.transition_metadata import dual_reference_metadata
+                    reference_mask, state_key = dual_reference_metadata(self.env)
                     next_set_state, env_r_ext, _, done, set_op_pair = self.env.step(
                         set_action,
                         operation_action,
                     )
 
+                    _, next_state_key = dual_reference_metadata(self.env)
+                    mira_metadata_batch.append((reference_mask, state_key, done, next_state_key))
                     r_ext = float(np.squeeze(env_r_ext))
                     r_mira = select_bonus(
                         getattr(self.args, 'exploration_reward', 'directional'),
@@ -654,7 +659,7 @@ class WorkerAgent:
                                 mira_stats = ray.get(self.ps.update_and_sample_mira_batch.remote(
                                     self.list_to_batch(mira_state_batch), self.list_to_batch(mira_set_action_batch),
                                     self.list_to_batch(mira_operation_action_batch), self.list_to_batch(mira_task_reward_batch),
-                                    self.list_to_batch(mira_next_state_batch), curr_episode+1))
+                                    self.list_to_batch(mira_next_state_batch), curr_episode+1, mira_metadata_batch))
                                 mira_pair_source = 'async_replay'
                                 mira_replay_size = mira_stats['replay_size']
                                 mira_phi_loss += mira_stats['phi_loss']
@@ -695,6 +700,7 @@ class WorkerAgent:
                         mira_set_action_batch = []
                         mira_operation_action_batch = []
                         mira_task_reward_batch = []
+                        mira_metadata_batch = []
 
                     set_state = next_set_state
                     set_action_steps = next_set_action_steps
@@ -802,7 +808,7 @@ class Agent:
 
     def train(self, max_episodes=None):
         max_episodes = int(args.episodes if max_episodes is None else max_episodes)
-        ps = ParameterServer.remote(
+        ps = query_actor(ParameterServer).remote(
             self.set_state_dim,
             self.operation_state_dim,
             self.set_action_dim,
@@ -814,5 +820,5 @@ class Agent:
                 raise ValueError('PCA total episode budget cannot change after collection')
             ray.get(ps.record_pca_collection.remote(self.pca_records))
             self.pca_records = []
-        workers = [WorkerAgent.remote(self.pipeline, ps, i, args, self.episode_steps) for i in range(self.num_workers)]
+        workers = [query_actor(WorkerAgent).remote(self.pipeline, ps, i, args, self.episode_steps) for i in range(self.num_workers)]
         complete_training(ray, ps, workers, [worker.train_loop.remote(max_episodes) for worker in workers])

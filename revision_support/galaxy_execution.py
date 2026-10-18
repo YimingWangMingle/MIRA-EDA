@@ -1,4 +1,4 @@
-def execute_galaxy_operator(pipeline, dataset, action_type):
+def execute_galaxy_operator(pipeline, dataset, action_type, _local=False):
 
     parts = action_type.split('-&-')
     operator = parts[0]
@@ -12,13 +12,21 @@ def execute_galaxy_operator(pipeline, dataset, action_type):
         constrained = any(item.attribute == dimension for item in components)
         if (operator == 'by_facet' and constrained) or (operator == 'by_neighbors' and not constrained):
             return []
-        if operator == 'by_facet':
-            result = pipeline.by_facet(dataset, [dimension], pipeline.discrete_categories_count)
-        else:
-            result = pipeline.by_neighbors(dataset, [dimension])
+    elif len(components) <= 1:
+        return []
+
+    from .query_service import service_available
+    if not _local and service_available():
+        from .query_clients import galaxy_query
+        from .resources import query_timer
+        with query_timer('galaxy', action_type):
+            return galaxy_query(pipeline, dataset, action_type)
+
+    if operator == 'by_facet':
+        result = pipeline.by_facet(dataset, [dimension], pipeline.discrete_categories_count)
+    elif operator == 'by_neighbors':
+        result = pipeline.by_neighbors(dataset, [dimension])
     else:
-        if len(components) <= 1:
-            return []
         result = getattr(pipeline, operator)(dataset)
     if result is None:
         return []

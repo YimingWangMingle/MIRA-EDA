@@ -8,6 +8,14 @@ import sys
 ROOT = Path(__file__).resolve().parent
 
 
+def load_runner(root=ROOT):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('mira_release_runner', Path(root) / 'run.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def sha256(path):
     digest = hashlib.sha256()
     with Path(path).open('rb') as stream:
@@ -65,7 +73,9 @@ def verify_source(root=ROOT):
 def parser_from_source(root, dataset, method):
 
     import copy
-    from run import ABLATIONS, BASELINES
+    from revision_support.query_config import add_query_arguments
+    runner = load_runner(root)
+    ABLATIONS, BASELINES = runner.ABLATIONS, runner.BASELINES
     if method in ABLATIONS or method == 'mira_no_ext':
         method = 'mira'
     if dataset == 'covertype':
@@ -76,7 +86,8 @@ def parser_from_source(root, dataset, method):
             'baselines/greedy_eda/galaxy.py' if method == 'greedy_eda' else
             'baselines/random/random_baseline.py' if method == 'random' else
             'baselines/{}/A3C_2_actors/A3C.py'.format(method))
-    scope = dict(argparse=argparse, BASELINES=set(BASELINES)-{'random', 'greedy_eda'})
+    scope = dict(argparse=argparse, BASELINES=set(BASELINES)-{'random', 'greedy_eda'},
+                 add_query_arguments=add_query_arguments)
     for helper in ('revision_support/ablation_config.py', 'revision_support/covertype_defaults.py'):
         nodes = ast.parse((root/helper).read_text(encoding='utf-8')).body
         wanted = [n for n in nodes if isinstance(n, (ast.FunctionDef, ast.ClassDef))
@@ -97,13 +108,13 @@ def parser_from_source(root, dataset, method):
         isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'parser' for t in n.targets)) or (
         isinstance(n, ast.Expr) and isinstance(n.value, ast.Call) and (
             isinstance(n.value.func, ast.Attribute) and isinstance(n.value.func.value, ast.Name) and n.value.func.value.id == 'parser'
-            or isinstance(n.value.func, ast.Name) and n.value.func.id == 'add_ablation_arguments'))]
+            or isinstance(n.value.func, ast.Name) and n.value.func.id in ('add_ablation_arguments', 'add_query_arguments')))]
     exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), 'exec'), scope)
     return scope['parser']
 
 
 def verify_commands(root=ROOT):
-    from run import build_jobs
+    build_jobs = load_runner(root).build_jobs
     total = 0
     for smoke in (False, True):
         for job in build_jobs(root, smoke=smoke):
@@ -123,9 +134,9 @@ def verify_commands(root=ROOT):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--runtime', action='store_true', help='Also check pinned packages and actual model updates')
-    parser.add_argument('--source-only', action='store_true', help='Check source, manifest and CLI; skip data and runtime')
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument('--runtime', action='store_true', help='')
+    parser.add_argument('--source-only', action='store_true', help='')
     args = parser.parse_args()
     sys.dont_write_bytecode = True
     report = verify_source(ROOT)

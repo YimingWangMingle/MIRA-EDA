@@ -15,6 +15,7 @@ from .evaluate import (
 )
 from .rollout_pool import PersistentRolloutExecutor
 from atena_common.costs import QueryCosts, write_costs
+from revision_support.query_service import shared_query_run, set_query_report_path, execution_options
 
 
 METHOD = "MIRA"
@@ -36,6 +37,7 @@ TRAIN_LOG_FIELDS = (
     "entropy",
     "phi_loss",
     "dyn_loss",
+    "reward_prediction_loss",
     "metric_target",
     "analytical_distance",
     "successor_distance",
@@ -75,6 +77,7 @@ def build_worker_args(
     return payloads
 
 
+@shared_query_run
 def run_experiment(args):
     _validate_runtime(args)
     with PersistentRolloutExecutor(
@@ -104,6 +107,8 @@ def _run_experiment(args, rollout_executor):
     )
 
     result_dir.mkdir(parents=True, exist_ok=False)
+    set_query_report_path(result_dir / 'query_scheduler.json')
+    args.query_execution = execution_options()
     write_json(result_dir / "config.json", vars(args))
 
 
@@ -166,7 +171,9 @@ def _run_experiment(args, rollout_executor):
             update_idx += 1
 
             update_stats = _a3c_update(model, optimizer, batch, args)
-            mira_stats = learner.submit(batch['states'], batch['actions'], batch['task_rewards'], batch['next_states'])
+            mira_stats = learner.submit(batch['states'], batch['actions'], batch['task_rewards'], batch['next_states'],
+                valid_action_masks=batch['masks'], state_keys=batch['state_keys'],
+                next_terminals=batch['terminals'], next_state_keys=batch['next_state_keys'])
             reward_moments.update(batch['raw_bonuses'])
             mira_stats['metric_target'] = mira_stats['mean_metric_target']
             mira_stats['raw_directional_reward'] = float(np.mean(batch['raw_bonuses']))
@@ -249,6 +256,7 @@ def _run_rollout(args, direction, env, model, mira):
     total_task_reward = 0.0
     policy_states = []
     raw_bonuses = []
+    state_keys, next_state_keys, terminals = [], [], []
 
     while not done:
         state_array = np.asarray(state, dtype=np.float32).reshape(1, -1)
@@ -257,7 +265,11 @@ def _run_rollout(args, direction, env, model, mira):
         mask = env.legal_action_mask()
         policy = masked_probs(probs.numpy()[0], mask)
         action = int(np.random.choice(env.action_dim, p=policy))
+        from revision_support.transition_metadata import atena_reference_identity
+        state_keys.append(atena_reference_identity(env))
         next_state, task_reward, done, _ = env.step(action)
+        next_state_keys.append(atena_reference_identity(env))
+        terminals.append(done)
         mira_bonus = mira.compute_bonus(
             state,
             next_state,
@@ -288,6 +300,9 @@ def _run_rollout(args, direction, env, model, mira):
         args.gae_lambda,
     )
     return {
+        "state_keys": np.asarray(state_keys, dtype='S64'),
+        "next_state_keys": np.asarray(next_state_keys, dtype='S64'),
+        "terminals": np.asarray(terminals, dtype=bool),
         "states": np.asarray(states, dtype=np.float32),
         "policy_states": np.asarray(policy_states, dtype=np.float32),
         "raw_bonuses": np.asarray(raw_bonuses, dtype=np.float32),
@@ -306,6 +321,7 @@ def _run_rollout(args, direction, env, model, mira):
 
 def _merge_rollouts(rollouts):
     keys = (
+        "state_keys", "next_state_keys", "terminals",
         "states",
         "policy_states",
         "raw_bonuses",

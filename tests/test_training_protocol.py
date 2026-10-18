@@ -71,7 +71,7 @@ def test_galaxy_worker_uses_shared_observation():
     assert max(mira.statistic_indices) < mira.set_state_dim
 
 
-@pytest.mark.parametrize('method', ['mira', 'mira_no_ext'])
+@pytest.mark.parametrize('method', ['mira', 'mira_no_ext', 'dora', 'atena', 'atena_no_ext', 'pure_a3c'])
 def test_covertype_worker_uses_shared_candidates_and_observation(method):
     from covertype_rl.full_a3c import CovertypeDualActorEnvironment
     from covertype_rl.actions import build_action_space
@@ -84,7 +84,7 @@ def test_covertype_worker_uses_shared_candidates_and_observation(method):
                           'CovertypeDualActorEnvironment', args, {'agent_id': 0})
     env = CovertypeDualActorEnvironment(universe, actions, **kwargs)
     state = env.reset()
-    assert state.shape == (840,)
+    assert state.shape == (len(actions) * 84,)
     for step in range(12):
         expected, action_ids = build_candidate_view(universe, actions, env.base_env.current_set_id)
         assert env.candidate_set_ids == expected

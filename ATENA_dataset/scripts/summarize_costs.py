@@ -41,7 +41,7 @@ def summarize(root, seed, resource_root=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description='')
     parser.add_argument('--root', type=Path, default=Path('results'))
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--resource-root', type=Path)

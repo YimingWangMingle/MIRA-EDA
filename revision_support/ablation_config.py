@@ -5,28 +5,33 @@ REWARDS = ('directional', 'rnd', 'count', 'knn', 'random')
 
 
 def add_ablation_arguments(parser, backend='galaxy'):
+    from revision_support.query_config import add_query_arguments
+    add_query_arguments(parser)
     parser.add_argument('--exploration_wup', type=int, choices=(0,), default=0,
-                        help='Locked to zero; optional assistance is not included')
+                        help='')
     parser.add_argument('--spool_size', type=int, choices=(0,), default=0,
-                        help='Locked to zero in this release')
+                        help='')
     parser.add_argument('--output_profile', choices=('full', 'csv'), default='csv',
-                        help='csv retains experiment CSVs/configuration but skips all model checkpoints')
+                        help='')
     parser.add_argument('--encoder_variant', choices=ENCODERS, default='learned')
     parser.add_argument('--encoder_pca_path', default=None,
-                        help='Output for PCA fitted in this run; existing artifacts are rejected')
+                        help='')
     parser.add_argument('--pca_collection_episodes', type=int, default=16,
-                        help='Initial episodes used for PCA, included in --episodes (formal: 16)')
+                        help='')
     parser.add_argument('--encoder_vae_kl', type=float, default=0.001)
     parser.add_argument('--exploration_reward', choices=REWARDS, default='directional',
-                        help='Replace the directional bonus only; retain other reward terms')
+                        help='')
     parser.add_argument('--replacement_reward_scale', type=float, default=1.)
     parser.add_argument('--replacement_rnd_lr', type=float, default=3e-4)
     parser.add_argument('--replacement_knn_k', type=int, default=5)
     parser.add_argument('--replacement_knn_capacity', type=int, default=2048,
-                        help='Maximum recent observations in the global kNN FIFO')
+                        help='')
 
 
 def ablation_label(args):
+    query = getattr(args, 'query_ablation', 'none')
+    if query != 'none':
+        return 'query_' + query
     encoder = getattr(args, 'encoder_variant', 'learned')
     reward = getattr(args, 'exploration_reward', 'directional')
     if encoder != 'learned':
@@ -37,6 +42,8 @@ def ablation_label(args):
 
 
 def validate_ablation_args(args):
+    from revision_support.query_config import configure_query_processing
+    configure_query_processing(args)
     if getattr(args, 'exploration_wup', 0) != 0 or getattr(args, 'spool_size', 0) != 0:
         raise ValueError('This distribution requires exploration_wup=0')
     encoder = getattr(args, 'encoder_variant', 'learned')
@@ -72,6 +79,8 @@ def validate_ablation_args(args):
 
 def representation_options(args):
     return dict(statistic_indices=getattr(args, 'mira_statistic_indices', None),
+                task_reward_enabled=(getattr(args, 'baseline', 'mira') != 'mira_no_ext'
+                                     and float(getattr(args, 'w_ext', 2.)) != 0.),
                 lambda_ana=getattr(args, 'mira_lambda_ana', 1.), mc_samples=getattr(args, 'mira_mc_samples', 4),
                 encoder_variant=getattr(args, 'encoder_variant', 'learned'),
                 encoder_pca_path=getattr(args, 'encoder_pca_path', None),

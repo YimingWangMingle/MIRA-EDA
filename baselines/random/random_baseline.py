@@ -1,3 +1,7 @@
+from revision_support.query_service import shared_query_run, set_query_report_path
+from revision_support.query_config import add_query_arguments
+from revision_support.candidate_pruning import sample_family_action as sample_random_operator_action
+from pathlib import Path
 import argparse
 import csv
 import json
@@ -103,11 +107,6 @@ def build_action_groups(action_manager):
     return groups
 
 
-def sample_random_operator_action(action_groups, rng):
-    family = str(rng.choice(OPERATOR_FAMILIES))
-    return int(rng.choice(action_groups[family]))
-
-
 def safe_set_id(dataset, default=-1):
     try:
         set_id = int(dataset.set_id)
@@ -140,24 +139,8 @@ def is_operator_valid(dataset, action_type):
 
 
 def execute_operator(pipeline, dataset, action_type):
-    parts = str(action_type).split("-&-")
-    operator = parts[0]
-    parameter = parts[1] if len(parts) > 1 else None
-
-    if operator == "by_superset":
-        result = pipeline.by_superset(dataset)
-    elif operator == "by_distribution":
-        result = pipeline.by_distribution(dataset)
-    elif operator == "by_facet":
-        result = pipeline.by_facet(dataset, [parameter], pipeline.discrete_categories_count)
-    elif operator == "by_neighbors":
-        result = pipeline.by_neighbors(dataset, [parameter])
-    else:
-        result = []
-
-    if result is None:
-        return []
-    return result if isinstance(result, list) else [result]
+    from revision_support.galaxy_execution import execute_galaxy_operator
+    return execute_galaxy_operator(pipeline, dataset, str(action_type))
 
 
 def build_state_encoder(pipeline, args):
@@ -242,7 +225,9 @@ def run_worker(worker_args):
 
             for step in range(1, args.steps + 1):
                 input_set_id = safe_set_id(current_dataset, default=-1)
-                operation_action = sample_random_operator_action(action_groups, rng)
+                probabilities = action_manager.fix_possible_operation_action_probs(
+                    current_dataset, np.ones(len(action_manager.set_action_types)))
+                operation_action = sample_random_operator_action(action_groups, rng, np.flatnonzero(probabilities))
                 action_type = action_manager.set_action_types[operation_action]
                 action_parts = action_type.split("-&-")
                 operator = action_parts[0]
@@ -335,7 +320,9 @@ def episode_ranges(total_episodes, workers):
     return ranges
 
 
+@shared_query_run
 def run(args):
+    set_query_report_path(Path(f"{args.output_prefix}_query_scheduler.json"))
     config_path = f"{args.output_prefix}_{args.baseline}_config.json"
     ensure_parent_dir(config_path)
     with open(config_path, 'w', encoding='utf-8') as output:
@@ -454,6 +441,7 @@ def parse_args():
     parser.add_argument("--target_samples_per_file", type=int, default=100)
     parser.add_argument("--output_prefix", type=str, default="random_baseline")
     parser.add_argument("--write_partial", action="store_true")
+    add_query_arguments(parser)
     return parser.parse_args()
 
 

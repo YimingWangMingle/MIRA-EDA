@@ -32,6 +32,7 @@ class ActionManager:
             return [float(i)/total for i in probs]
 
     def fix_possible_operation_action_probs(self, dataset, probs):
+        probs = np.asarray(probs, dtype=np.float64).copy()
         valid_mask = [1.0] * len(probs)
         for dimension in self.pipeline.exploration_columns:
             predicate_item = next((
@@ -58,6 +59,9 @@ class ActionManager:
                 probs[idx] = 0
                 valid_mask[idx] = 0.0
 
+        from revision_support.candidate_pruning import galaxy_candidate_mask
+        valid_mask = galaxy_candidate_mask(dataset, self.set_action_types, valid_mask)
+        probs *= valid_mask
         total = sum(probs)
 
         if total <= 1e-8:

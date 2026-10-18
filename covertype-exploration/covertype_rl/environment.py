@@ -73,9 +73,17 @@ class FixedSetEnvironment:
         return metrics["state"], metrics, int(next_set_id), bool(valid)
 
     def _metrics(self, set_id, valid, get_reward=True):
-        state = self.universe.state_for_set(set_id)
-        target_items = self.universe.targets_for_set(set_id)
-        set_size = self.universe.size_for_set(set_id)
+        from revision_support.query_service import service_available
+        if service_available():
+            from revision_support.query_clients import covertype_query
+            result = covertype_query(self.universe, set_id)
+            state, set_size = result['state'], int(result['set_size'])
+
+            target_items = np.intersect1d(result['indices'], self.universe.targets_for_set(self.root_set_id), assume_unique=True)
+        else:
+            state = self.universe.state_for_set(set_id)
+            set_size = self.universe.size_for_set(set_id)
+            target_items = self.universe.targets_for_set(set_id)
         extrinsic = self._extrinsic(target_items, set_size, get_reward=get_reward)
         interestingness = self._interestingness(state, set_size)
         familiarity = extrinsic

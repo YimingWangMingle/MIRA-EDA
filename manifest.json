@@ -1,7 +1,7 @@
 {
-  "version": "mira_minimal_20261017",
+  "version": "mira_sigmod27_query_v1_20261018",
   "includes_data": true,
-  "total_bytes": 964060567,
+  "total_bytes": 964140468,
   "files": [
     {
       "path": ".gitattributes",
@@ -75,8 +75,8 @@
     },
     {
       "path": "app/pipelines/pipeline.py",
-      "size": 16450,
-      "sha256": "d25e49fa10cd013c4c729dfc9993ce9205f4a08b09dbdcb10348f65a1fb5028a"
+      "size": 16683,
+      "sha256": "82bc01661d72fef2ec7071457c8b34c24fc4e511ae9c60fd4ef24a0b4d27e17b"
     },
     {
       "path": "app/pipelines/pipeline_precalculated_sets.py",
@@ -105,8 +105,8 @@
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/arguments.py",
-      "size": 7828,
-      "sha256": "53d40af940afc589bd33afff2c0feda18c74925dd5655695985937138dc65b91"
+      "size": 5933,
+      "sha256": "f87e32f653682b51172b2589e2ad44ed5b1486f36e9ba0c659a31c6ad869eaa2"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/envs.py",
@@ -195,8 +195,8 @@
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/envs/env_properties.py",
-      "size": 17896,
-      "sha256": "1112a69d7a5980ad48dbe60bc72e7b9c60ffb565232f4011dee98303b3aa3cd7"
+      "size": 18273,
+      "sha256": "e74545c296278817aa222c135a59f10cb1f4dbd5827a96c03f688df7b44302f7"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/gym_atena/envs/helpers.py",
@@ -320,8 +320,8 @@
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/models/chinerrl_models/chainerrl_ppo.py",
-      "size": 11037,
-      "sha256": "9471687188bfc3aa875c7bd8df85e7dd5b92c96aaa45a2411f5213058612bd88"
+      "size": 10903,
+      "sha256": "3fbdfe45a7a49d1ff34d8bdeb1fe83340af79f591768614a447b10cf5c2afc55"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/models/chinerrl_models/parameterized_softmax.py",
@@ -365,8 +365,8 @@
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/train.py",
-      "size": 2588,
-      "sha256": "00cc1dbd3d0bdcc6afdabdcc1776a900ee4b841dade00cb1e14f974a51be69cd"
+      "size": 3094,
+      "sha256": "cae0a59d86e7489e9dd9fe21dbbe26d8089ee32964e594aacad3fca98e8b8c21"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/atena-basic/train_agent_chainerrl.py",
@@ -560,8 +560,8 @@
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/simulation/display.py",
-      "size": 7252,
-      "sha256": "22a9bbac80f4fa6f332412a33041565d344188b465ecfed18f807b889cf7243b"
+      "size": 7476,
+      "sha256": "b49b1531fc87e2dd1417a6c7a508d4aaef8bf7ef4c1654d80dff1e804b474d67"
     },
     {
       "path": "ATENA_dataset/ATENA-A-EDA/benchmark/atena/simulation/state.py",
@@ -635,8 +635,8 @@
     },
     {
       "path": "ATENA_dataset/atena_baselines/train.py",
-      "size": 14502,
-      "sha256": "e696fe71c243609304a0ce79f0fada0ec11621cc13ff6d4dbd8cafd4a1d87864"
+      "size": 14732,
+      "sha256": "34b3ef937b636eba6055f3b9fe7c363498bbec60c9ef4ad040c1106db61f053d"
     },
     {
       "path": "ATENA_dataset/atena_common/__init__.py",
@@ -685,8 +685,8 @@
     },
     {
       "path": "ATENA_dataset/MIRA/mira/train.py",
-      "size": 14578,
-      "sha256": "9fdc1bc555d9889418bc1c958ce94aab33045541fbbdebf088d94fd2c5ae96f8"
+      "size": 15540,
+      "sha256": "94515c3527eb9c7e827ca1818587c925e3c4eb5ae4160bbbdf1e0194c8bb0937"
     },
     {
       "path": "ATENA_dataset/MIRA/requirements.txt",
@@ -695,8 +695,8 @@
     },
     {
       "path": "ATENA_dataset/MIRA/run.py",
-      "size": 3120,
-      "sha256": "f3088ec9b35563936d5de3ccfb65d64b6ad0c235f4958f6104fe488a9901f204"
+      "size": 3097,
+      "sha256": "0d518475dbcf16830aa802db1f70ea904aa0c8cb7b8c2d174475b202b300e03c"
     },
     {
       "path": "ATENA_dataset/MIRA/scripts/run_all.sh",
@@ -710,8 +710,8 @@
     },
     {
       "path": "ATENA_dataset/run_atena_baselines.py",
-      "size": 2786,
-      "sha256": "cd8c100d50b31fe873ddbd41d4e13a64b7c6131ab6aef78baf2bf04f0dfa819f"
+      "size": 2734,
+      "sha256": "78126f5e9f13b1c9685b645f7d05914aff1e4dbe39aba79b9c9a5ebe8c989b20"
     },
     {
       "path": "ATENA_dataset/scripts/check_env.py",
@@ -720,8 +720,8 @@
     },
     {
       "path": "ATENA_dataset/scripts/evaluate_official_atena.py",
-      "size": 7610,
-      "sha256": "e4e2ac2f85cd41533fddbb98b0ab08db9bdde065e6f06d635509cfdb100be248"
+      "size": 7754,
+      "sha256": "60f57c28cb46f7640e3b56be0802153a842bbe1c5ce819e4df1052a3cf6f0260"
     },
     {
       "path": "ATENA_dataset/scripts/evaluate_official_atena_batch.sh",
@@ -765,8 +765,8 @@
     },
     {
       "path": "ATENA_dataset/scripts/recalculate_baselines.py",
-      "size": 1149,
-      "sha256": "a63f720b4fa089fd837157efc012608f8dad8e43ca36630f41af662278e268a5"
+      "size": 1094,
+      "sha256": "70e043d008124cff74d5be7f8b447e9a4d4d621a6f4e3614e86fb3a1fe771f15"
     },
     {
       "path": "ATENA_dataset/scripts/run_baselines.sh",
@@ -790,13 +790,13 @@
     },
     {
       "path": "ATENA_dataset/scripts/summarize_costs.py",
-      "size": 3145,
-      "sha256": "cf94dca4ba05453c4af938dcef4b23c3d4b2683de1952ab66d231ef9332333d8"
+      "size": 3140,
+      "sha256": "ba36db04a8db1e3f1b91d4d6497366b9711b75818b0259458186359ce17bfe95"
     },
     {
       "path": "ATENA_dataset/scripts/summarize_results.py",
-      "size": 7238,
-      "sha256": "4a93a97dc1a4576eb085348d9c768f635c6f1037cf6037d494c5cbe43cef8d71"
+      "size": 7050,
+      "sha256": "5c17e9efa0f30ca5edac3dd0a00dc4c29f0066cad4cd50658e1269d0d8c1efe8"
     },
     {
       "path": "baselines/__init__.py",
@@ -815,13 +815,13 @@
     },
     {
       "path": "baselines/atena/A3C_2_actors/A3C.py",
-      "size": 23591,
-      "sha256": "9e6c8fa292a34c5e4d7d602586d2a7bbc53b1c0e3b315aa1034302d5b359eb40"
+      "size": 24163,
+      "sha256": "9aacfac22fd9536a853fbae8e6179a092883e3b88b4109b8e2883f8553d9424b"
     },
     {
       "path": "baselines/atena/A3C_2_actors/action_manager.py",
-      "size": 2925,
-      "sha256": "78a31ad0663a0a40e71780d730f8ca775b2874171cdbcf1a676dd9aea72dee12"
+      "size": 57,
+      "sha256": "5cfcb368d3f7a0ea7a1a677e09d1f2c70f07e5b16d432452e399de413e62e1ce"
     },
     {
       "path": "baselines/atena/A3C_2_actors/critic.py",
@@ -845,8 +845,8 @@
     },
     {
       "path": "baselines/atena/A3C_2_actors/state_encoder.py",
-      "size": 6112,
-      "sha256": "dc2710c3602db9eab294de4c61f8b2a6a4f6dce7b0f2cef32ba983e789716267"
+      "size": 6308,
+      "sha256": "6f4ba32b69a38c3437c3c2dd55be77b23131c905a543a2251060354cb9adf385"
     },
     {
       "path": "baselines/atena/A3C_2_actors/target_set_generator.py",
@@ -865,13 +865,13 @@
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/A3C.py",
-      "size": 23452,
-      "sha256": "ca0883c2eded35971b870e6e22a0f5f83605da71398a7c27deff461910a6be56"
+      "size": 24074,
+      "sha256": "ccc2cc82bb87bbd0aa0d8e018f90dfe03438b61fc32c340ecfdc070cbeddda70"
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/action_manager.py",
-      "size": 2925,
-      "sha256": "78a31ad0663a0a40e71780d730f8ca775b2874171cdbcf1a676dd9aea72dee12"
+      "size": 57,
+      "sha256": "5cfcb368d3f7a0ea7a1a677e09d1f2c70f07e5b16d432452e399de413e62e1ce"
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/critic.py",
@@ -895,8 +895,8 @@
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/state_encoder.py",
-      "size": 6112,
-      "sha256": "dc2710c3602db9eab294de4c61f8b2a6a4f6dce7b0f2cef32ba983e789716267"
+      "size": 6308,
+      "sha256": "6f4ba32b69a38c3437c3c2dd55be77b23131c905a543a2251060354cb9adf385"
     },
     {
       "path": "baselines/atena_no_ext/A3C_2_actors/target_set_generator.py",
@@ -915,13 +915,13 @@
     },
     {
       "path": "baselines/dora/A3C_2_actors/A3C.py",
-      "size": 22874,
-      "sha256": "c85cdf122d788f8779e0f54a41502a8a799b4529f7a00df6494f91dae4e2e762"
+      "size": 23552,
+      "sha256": "1eaf4b8ce1fb7d9a9fd7ae551d710a762baceae03a1dad72f0f91fee0ee09426"
     },
     {
       "path": "baselines/dora/A3C_2_actors/action_manager.py",
-      "size": 2925,
-      "sha256": "78a31ad0663a0a40e71780d730f8ca775b2874171cdbcf1a676dd9aea72dee12"
+      "size": 57,
+      "sha256": "5cfcb368d3f7a0ea7a1a677e09d1f2c70f07e5b16d432452e399de413e62e1ce"
     },
     {
       "path": "baselines/dora/A3C_2_actors/critic.py",
@@ -945,8 +945,8 @@
     },
     {
       "path": "baselines/dora/A3C_2_actors/state_encoder.py",
-      "size": 6112,
-      "sha256": "dc2710c3602db9eab294de4c61f8b2a6a4f6dce7b0f2cef32ba983e789716267"
+      "size": 6308,
+      "sha256": "6f4ba32b69a38c3437c3c2dd55be77b23131c905a543a2251060354cb9adf385"
     },
     {
       "path": "baselines/dora/A3C_2_actors/target_set_generator.py",
@@ -965,8 +965,8 @@
     },
     {
       "path": "baselines/greedy_eda/galaxy.py",
-      "size": 15255,
-      "sha256": "1770aa5c790ea54c2904bf0ab5368993e54b157e319bb34639a22517b131b30f"
+      "size": 15487,
+      "sha256": "4e87004722abb38299164b1d6613bb35a74e71180c62a4dcaeac460df796c47e"
     },
     {
       "path": "baselines/greedy_eda/policy.py",
@@ -985,13 +985,13 @@
     },
     {
       "path": "baselines/pure_a3c/A3C_2_actors/A3C.py",
-      "size": 25152,
-      "sha256": "0fbd5fd80f5f32b767fa53d7ce4314e4b454524922fd9e8dd54c20d3f95193f3"
+      "size": 25608,
+      "sha256": "324c4d836258efb6ea9dd6db8e5d37dd904da54ec786dd4f5e3a4bc75a15f0e3"
     },
     {
       "path": "baselines/random/random_baseline.py",
-      "size": 16810,
-      "sha256": "ee31fbdbd55c3caaf7237e15d7353613d1bc53b2bad12a344372c33c965eed85"
+      "size": 16751,
+      "sha256": "ed26139a450f1c3e5105ccd74a91bfafa3c2d35a91bc0a158e7d54d2143a36c4"
     },
     {
       "path": "covertype-exploration/baselines/atena/run.py",
@@ -1015,8 +1015,8 @@
     },
     {
       "path": "covertype-exploration/baselines/greedy_eda/run.py",
-      "size": 21541,
-      "sha256": "da5cb354ee17b34fb1a314a42414aa6983fdbcb421ed14aef3c86757c29e5144"
+      "size": 21970,
+      "sha256": "7d503a7300247e330181b597798a3c4e19afd5237de644dc8c056cde889f46d2"
     },
     {
       "path": "covertype-exploration/baselines/mira/run.py",
@@ -1045,8 +1045,8 @@
     },
     {
       "path": "covertype-exploration/baselines/random/run.py",
-      "size": 14742,
-      "sha256": "258aeadc37740287ed42911fb01ac3480379ad457436325ad814264ade9474fb"
+      "size": 15549,
+      "sha256": "9ea2a4d94bfe5a93484530bdf9ff0032f4596dd3cc9738299454ce20d7887e89"
     },
     {
       "path": "covertype-exploration/covertype.csv",
@@ -1070,8 +1070,8 @@
     },
     {
       "path": "covertype-exploration/covertype_rl/candidates.py",
-      "size": 4082,
-      "sha256": "53df0e66854116e590426a105f4fdffe0eb5a816dd323c9d407f66c287b65553"
+      "size": 4374,
+      "sha256": "b6f184b8e31b65bc589c0dc90ab265312796df32a98e2db50ad754d1b68bc174"
     },
     {
       "path": "covertype-exploration/covertype_rl/data.py",
@@ -1080,8 +1080,8 @@
     },
     {
       "path": "covertype-exploration/covertype_rl/environment.py",
-      "size": 20984,
-      "sha256": "126275000fb920aae48d4ea31fb351ac311c8788a9a2e3294be064eff0f86bcb"
+      "size": 21444,
+      "sha256": "cff78897f87075aca2dcb41fddffd3c8b2b62c7acb3364dfe3cd713ef356841b"
     },
     {
       "path": "covertype-exploration/covertype_rl/fixed_sets.py",
@@ -1090,8 +1090,8 @@
     },
     {
       "path": "covertype-exploration/covertype_rl/full_a3c.py",
-      "size": 62170,
-      "sha256": "34264f18a9f3d9bd0a310835a2f63901cc1376addd4388831464540e6691bcad"
+      "size": 63475,
+      "sha256": "539dd695a8ab8b79382293c9950d9d0782ba2a01d4e45993229852fd969eea67"
     },
     {
       "path": "covertype-exploration/covertype_rl/greedy_preprocessing.py",
@@ -1255,8 +1255,8 @@
     },
     {
       "path": "README.md",
-      "size": 7032,
-      "sha256": "322d7eea868b9a28407c21b45269144acbb908c943bcc0b0e24744264ad4d0df"
+      "size": 6908,
+      "sha256": "9191b70006271d6dd30ba69d6fbae3994d73127f3765e6cb145255aae3fe2d8b"
     },
     {
       "path": "requirements.txt",
@@ -1270,8 +1270,8 @@
     },
     {
       "path": "revision_support/ablation_config.py",
-      "size": 4544,
-      "sha256": "a2db85d5cb5b465083950900756d5b8c6ce983d1b24417d76c789e14c002cf49"
+      "size": 4634,
+      "sha256": "be8a691d5cf4c4ca5a2737d9c4e66373876c6ad5bd5caa8301a2429fc2003576"
     },
     {
       "path": "revision_support/covertype_defaults.py",
@@ -1295,8 +1295,8 @@
     },
     {
       "path": "revision_support/galaxy_execution.py",
-      "size": 2288,
-      "sha256": "aa0fbdabe079d22f2c4661b6d5b7e9c64c410ecffc4b57b5324267a3e40f9f60"
+      "size": 2605,
+      "sha256": "0b3df07e658d05a825d0adbb54249dd32c041d607be551944eadeeafbde8e55b"
     },
     {
       "path": "revision_support/galaxy_results.py",
@@ -1315,18 +1315,18 @@
     },
     {
       "path": "revision_support/mira_core.py",
-      "size": 13229,
-      "sha256": "be57927deb8decc7078476bd7ee1e48d99c99eebd1f09da7e4643b7bf882ee2a"
+      "size": 17390,
+      "sha256": "3dcff1fb093eb40cf034395aed9cd26afc25170e339d4679766fed248fd44eb0"
     },
     {
       "path": "revision_support/mira_dual.py",
-      "size": 1479,
-      "sha256": "ee9a36d4146f7a64527eb5e1bad2ef7343fb73352237fd4effe2c974f7e7fc64"
+      "size": 1897,
+      "sha256": "2ac03c5ce6e8f5022c2fdd594d3083038f61824fe35abb92f87891335ed01005"
     },
     {
       "path": "revision_support/mira_learner.py",
-      "size": 4786,
-      "sha256": "6daa027f6fedafa44ba4ded23badd61b5004476f6cbdce3ca2b9432cfb133f75"
+      "size": 6510,
+      "sha256": "eae989e6a0ca3ca59038f81237c42b61b241de9bc5d9e89ef4d017308ec20277"
     },
     {
       "path": "revision_support/mira_task.py",
@@ -1350,8 +1350,8 @@
     },
     {
       "path": "revision_support/release_checks.py",
-      "size": 6248,
-      "sha256": "a10a851c6a4c6f30f65096b3d3676516394b3cd8405624b5d634424b839e3619"
+      "size": 6291,
+      "sha256": "faf4d28db13c3fe37f967f9027965b3273e2e1bf32798391bbef6de0e6f04d1a"
     },
     {
       "path": "revision_support/release_config.py",
@@ -1375,8 +1375,8 @@
     },
     {
       "path": "revision_support/training_runtime.py",
-      "size": 446,
-      "sha256": "38ad59916da009d9497ab8891b817e014c13c209306bcf29af35d084c5d0a804"
+      "size": 755,
+      "sha256": "16d54d6de94daeb7df4b7ca8a10569978d7602707994127f8b6582d6b74457fa"
     },
     {
       "path": "rl/__init__.py",
@@ -1390,13 +1390,13 @@
     },
     {
       "path": "rl/A3C_2_actors/A3C.py",
-      "size": 37901,
-      "sha256": "6429624cddbfcd61e5a415444d01abdb8d4520170d6bc1dc86992ed3ac975ba9"
+      "size": 38210,
+      "sha256": "3a5045ed1044aae8738e3a171e9de585bdef4dc645f292dfd2a503e5deb031d2"
     },
     {
       "path": "rl/A3C_2_actors/action_manager.py",
-      "size": 2925,
-      "sha256": "78a31ad0663a0a40e71780d730f8ca775b2874171cdbcf1a676dd9aea72dee12"
+      "size": 3176,
+      "sha256": "3e46b32f8bc4ca87330d98a68ed5a977ae1172bc8101b3d6faad694a3dcd45e2"
     },
     {
       "path": "rl/A3C_2_actors/critic.py",
@@ -1425,8 +1425,8 @@
     },
     {
       "path": "rl/A3C_2_actors/state_encoder.py",
-      "size": 6417,
-      "sha256": "0c458e8cefb25154891fe08c2e2bfaed6cebca1b18312d77179078a94ec8b898"
+      "size": 6592,
+      "sha256": "6bb16cb427c36608d6d2bb56a7d760f17dcdccb635c1d713f528a9890ffeefe2"
     },
     {
       "path": "rl/A3C_2_actors/target_set_generator.py",
@@ -1450,18 +1450,18 @@
     },
     {
       "path": "RL-launcher-atena-no-ext.py",
-      "size": 858,
-      "sha256": "49ae0d963ede08d4a90b3d387797dff0eefdaddb9ccbe8c0b679387b50fdc8ae"
+      "size": 937,
+      "sha256": "72d4704aeef5c86df77f98700112fcc5da0969bc1ed620bb7da0eb24bf96b3c2"
     },
     {
       "path": "RL-launcher-atena.py",
-      "size": 904,
-      "sha256": "1c7cd8ea92096c426f306c68ee881ee3ba1db839114bfc0c9601ee0ee7558b9d"
+      "size": 983,
+      "sha256": "4d6ce660eea50664a1abed83c9b60fa3a590815266b0d7ee40e6bf4d7b9b7504"
     },
     {
       "path": "RL-launcher-dora.py",
-      "size": 903,
-      "sha256": "8eae80eaa9ebfc3fc0124be8460d8f222f59b27d6a49f2dd49c4087f40cbabd4"
+      "size": 982,
+      "sha256": "eb1f60931e8f947934cd22dc328bbf227d31767b8c1120f61154f56ec18dcdde"
     },
     {
       "path": "RL-launcher-greedy-eda.py",
@@ -1470,8 +1470,8 @@
     },
     {
       "path": "RL-launcher-pure-a3c.py",
-      "size": 984,
-      "sha256": "629d586456e5492bcb215d050447983c80cf5476cc238426f9ddca37eb18d555"
+      "size": 1230,
+      "sha256": "b744261b207904fe71c7d4819758fc26056cc21783eae5ab7e56975646a278c8"
     },
     {
       "path": "RL-launcher-random-baseline.py",
@@ -1480,28 +1480,118 @@
     },
     {
       "path": "RL-launcher.py",
-      "size": 749,
-      "sha256": "34dfad89a35f83bb0c08e02d63f8825d9899c6eb0f4a5579ad7ac3362d20a14f"
+      "size": 828,
+      "sha256": "8d3c0ebceecebb2fe792bf12f3d3036631b16965417e6bc4869bdd9975e9b916"
     },
     {
       "path": "run.py",
-      "size": 8868,
-      "sha256": "ba05f68b3af37b6365746b0a9ba777de14e4e0e8d52b232ee0180f9bcc93c193"
+      "size": 9116,
+      "sha256": "6644ac189e95c1126496d0bc7947e10c0a6ec1b990e72ef4afa2c4f36010bb54"
     },
     {
       "path": "scripts/measure_experiment.py",
-      "size": 5442,
-      "sha256": "700df26943e316f4ebbe68e67a9d0c41b29eee748e5b98df556a81f1d7cb067c"
+      "size": 5437,
+      "sha256": "fee1867a1d1d3af58a796604c7dd88ce13f64f0fb48a0fbcc7983c1661265f08"
     },
     {
       "path": "tests/test_training_protocol.py",
-      "size": 8608,
-      "sha256": "3dbeac70b9e423a2b3282037b9abc721dcc7d3082304490c77d93c1e9d7e9ad8"
+      "size": 8667,
+      "sha256": "d240a783a70b8fc9d515a37810091f0f15d3a0c0c58dde265248f76aa8ef5848"
     },
     {
       "path": "verify.py",
-      "size": 8178,
-      "sha256": "cfb7edc587f2b867afdf6f36c52daf7b064fedd6a2def3a719c223e8fd4e1f8a"
+      "size": 8542,
+      "sha256": "93f7295dafbc2b9900a8c3c4dfa08a48b7faf55b08e795253975f72db6c2611e"
+    },
+    {
+      "path": "LICENSE",
+      "size": 1076,
+      "sha256": "ef3660e11ae4418151bf502e1a0095a3cd81d9e57d33b98756f64e63e691badd"
+    },
+    {
+      "path": "NOTICE",
+      "size": 388,
+      "sha256": "cbb7e79a6327530b3724acdcca340e6bc17fe6b3528aa162e488409b60d5471d"
+    },
+    {
+      "path": "revision_support/candidate_pruning.py",
+      "size": 1289,
+      "sha256": "34997d1eebab656455ac6e71e559045ba5ae2f49c0f03c5cd4eb628434e132b1"
+    },
+    {
+      "path": "revision_support/query_backends.py",
+      "size": 7699,
+      "sha256": "018e42ce2de1fd4056cc1868a0cb7ca034a6fbfee0daac99c8a87757bbf9a3d6"
+    },
+    {
+      "path": "revision_support/query_clients.py",
+      "size": 2506,
+      "sha256": "300f9709aa49ef9f112c6feb269d91e242a7b4d53270ace48869fa0ee18ac2c0"
+    },
+    {
+      "path": "revision_support/query_config.py",
+      "size": 3398,
+      "sha256": "a6f82ca8b914b67f21d046ede24b63cc8aa17a39d77952e965cd9382e48fa668"
+    },
+    {
+      "path": "revision_support/query_scheduler.py",
+      "size": 6179,
+      "sha256": "3284aa69a7a0f331b876188e8dd3901708a5c13c7a7a49491f72b28e07277c15"
+    },
+    {
+      "path": "revision_support/query_service.py",
+      "size": 6595,
+      "sha256": "10df3c7a39516ecd56f72791b023bf8cbcbd00b6113b7f6f4cd4914a3565a631"
+    },
+    {
+      "path": "revision_support/reference_policy.py",
+      "size": 2243,
+      "sha256": "2ed358b2fed802c5a46d5fdf308d9a2341c9db525c83f622f131cb7853fd2515"
+    },
+    {
+      "path": "revision_support/transition_metadata.py",
+      "size": 1932,
+      "sha256": "85b3e4dc7ff8a189a9b2521aa3db1feb7e5ff245c09cb7e263fd429528ccafbc"
+    },
+    {
+      "path": "tests/test_mira_reference_core.py",
+      "size": 4750,
+      "sha256": "cbf97ea7441df76aed95968e91d7152f626ea27edf76022107fd80552e5f513c"
+    },
+    {
+      "path": "tests/test_query_backends.py",
+      "size": 3227,
+      "sha256": "c6a0d44be0fbc33eba44a7e121336769e135e07a18388271531027e9894874ad"
+    },
+    {
+      "path": "tests/test_query_protocol.py",
+      "size": 13646,
+      "sha256": "170bfbf6d2b4e6be7a58ea73fac0208bea4a5ef8d068e838bf245b0751ff40ed"
+    },
+    {
+      "path": "tests/test_query_scheduler.py",
+      "size": 3808,
+      "sha256": "f55522635a9635118dc7c2522d49c2535d41182d22439e50a15a4e5276e5697e"
+    },
+    {
+      "path": "tests/test_query_service.py",
+      "size": 5765,
+      "sha256": "66e4e5216756ff86d2fecd56276e36ae2eb8e5c4d12b12f5c613d3def5ecb492"
+    },
+    {
+      "path": "tests/test_reference_policy.py",
+      "size": 1792,
+      "sha256": "3675c59f87d39ee0ec4c62863d0302ba0d611af2681f314e0a2414d07a8cfb5b"
+    },
+    {
+      "path": "tests/test_release_fairness.py",
+      "size": 3737,
+      "sha256": "a19d5f0bf0fa5b6dafd079ebc86a855fa249bba1774eb868b16668db458c68a8"
+    },
+    {
+      "path": "tests/test_transition_metadata.py",
+      "size": 2868,
+      "sha256": "eaf1ce9b71e915a41892011595c3364da5961dc01815b5d92a0e56e7cefa3e65"
     }
   ]
 }

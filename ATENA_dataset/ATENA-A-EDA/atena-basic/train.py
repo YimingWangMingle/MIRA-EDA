@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from revision_support.query_service import query_service_scope, set_query_report_path
 from Utilities.Utility_Functions import initialize_agent_and_env
 from arguments import AlgoName
 
@@ -72,14 +76,19 @@ def train_or_evaluate(
 
 
 if __name__ == '__main__':
-    agent, env, args = initialize_agent_and_env()
+    from types import SimpleNamespace
+    from revision_support.query_config import configure_query_processing
+    configure_query_processing(SimpleNamespace(), method='atena')
+    with query_service_scope():
+        agent, env, args = initialize_agent_and_env()
+        set_query_report_path(Path(args.outdir) / 'query_scheduler.json')
 
-    train_or_evaluate(args, agent,
-                      args.env,
-                      env,
-                      args.seed,
-                      args.render,
-                      args.eval_n_runs,
-                      args.steps,
-                      args.eval_interval,
-                      args.outdir)
+        train_or_evaluate(args, agent,
+                          args.env,
+                          env,
+                          args.seed,
+                          args.render,
+                          args.eval_n_runs,
+                          args.steps,
+                          args.eval_interval,
+                          args.outdir)

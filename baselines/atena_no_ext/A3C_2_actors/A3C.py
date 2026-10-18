@@ -1,3 +1,5 @@
+from revision_support.query_config import add_query_arguments, configure_query_processing, query_actor
+from revision_support.training_runtime import seed_training
 import argparse
 from pathlib import Path
 import os
@@ -38,12 +40,13 @@ parser.add_argument('--lstm_steps', type=int, default=5)
 
 parser.add_argument('--target_set', type=str, default=None)
 parser.add_argument('--target_seed', type=int, default=None)
+parser.add_argument('--seed', type=int, default=None)
 parser.add_argument('--target_samples_per_file', type=int, default=100)
 
 
-parser.add_argument('--w_int', type=float, default=0.1, help="ATENA interestingness weight")
-parser.add_argument('--w_coh', type=float, default=0.1, help="ATENA coherency weight")
-parser.add_argument('--w_div', type=float, default=0.1, help="ATENA diversity weight")
+parser.add_argument('--w_int', type=float, default=0.1, help='')
+parser.add_argument('--w_coh', type=float, default=0.1, help='')
+parser.add_argument('--w_div', type=float, default=0.1, help='')
 
 parser.add_argument('--notes', type=str, default="")
 parser.add_argument('--mode', type=str, default="scattered")
@@ -53,7 +56,9 @@ parser.add_argument('--resume', action='store_true')
 parser.add_argument('--resume_step', type=int, default=None)
 parser.add_argument('--operators', nargs='+', type=str,
                     default=["by_facet", "by_superset", "by_neighbors", "by_distribution"])
+add_query_arguments(parser)
 args = parser.parse_args()
+configure_query_processing(args, method='atena_no_ext')
 
 if args.resume_step != None:
     args.resume = True
@@ -62,6 +67,8 @@ if args.name == "":
     args.name = f"{args.mode}-atena_no_ext-lstm-{args.lstm_steps}-alr-{args.actor_lr}-clr-{args.critic_lr}-{now.strftime('%m%d%Y_%H%M%S')}"
 
 args.result_dir = str(Path(args.output_dir) / args.name)
+from revision_support.query_service import set_query_report_path
+set_query_report_path(Path(args.result_dir) / 'query_scheduler.json')
 Path(args.result_dir).mkdir(parents=True, exist_ok=True)
 
 if not args.resume:
@@ -78,11 +85,14 @@ else:
                 setattr(args, key, items[key])
 
 wandb.init(name=args.name, project="deep-rl-tf2", id=args.id, resume=args.resume, config=vars(args))
+configure_query_processing(args, method='atena_no_ext')
+(Path(args.result_dir) / 'info.json').write_text(json.dumps(vars(args), indent=2), encoding='utf-8')
 
 
 @ray.remote
 class ParameterServer:
     def __init__(self, set_state_dim, operation_state_dim, set_action_dim, operation_action_dim, args):
+        seed_training(args.seed)
         import tensorflow as tf
         physical_devices = tf.config.list_physical_devices('GPU')
         if physical_devices:
@@ -236,6 +246,7 @@ class ParameterServer:
 @ray.remote
 class WorkerAgent:
     def __init__(self, pipeline, ps_handle, agentId, args, episode_steps):
+        seed_training(args.seed, agentId)
         import tensorflow as tf
         physical_devices = tf.config.list_physical_devices('GPU')
         if physical_devices:
@@ -515,6 +526,6 @@ class Agent:
 
     def train(self, max_episodes=None):
         max_episodes = int(args.episodes if max_episodes is None else max_episodes)
-        ps = ParameterServer.remote(self.set_state_dim, self.operation_state_dim, self.set_action_dim, self.operation_action_dim, args)
-        workers = [WorkerAgent.remote(self.pipeline, ps, i, args, self.episode_steps) for i in range(self.num_workers)]
+        ps = query_actor(ParameterServer).remote(self.set_state_dim, self.operation_state_dim, self.set_action_dim, self.operation_action_dim, args)
+        workers = [query_actor(WorkerAgent).remote(self.pipeline, ps, i, args, self.episode_steps) for i in range(self.num_workers)]
         complete_training(ray, ps, workers, [worker.train_loop.remote(max_episodes) for worker in workers])

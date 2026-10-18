@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats import entropy
+from revision_support.query_backends import galaxy_summary
 from scipy.spatial.distance import jensenshannon
 from typing import List
 from app.pipelines.pipeline_precalculated_sets import PipelineWithPrecalculatedSets
@@ -58,6 +58,7 @@ class StateEncoder:
         r_ext = 0.0
         r_int_js = 0.0
         data = dataset.data
+        summary = galaxy_summary(dataset, self.pipeline.exploration_columns)
 
 
         if get_reward and dataset.set_id is not None and not data.empty and len(self.target_items) > 0:
@@ -100,11 +101,14 @@ class StateEncoder:
         if get_interestingness is None:
             get_interestingness = get_reward
         if get_interestingness and parent_dataset is not None and not parent_dataset.data.empty and not data.empty:
+            parent_summary = galaxy_summary(parent_dataset, self.pipeline.exploration_columns)
             divergence_sum = 0.0
             valid_dims = 0
             for dim in self.pipeline.exploration_columns:
-                p_counts = parent_dataset.data[dim].value_counts(normalize=True)
-                q_counts = data[dim].value_counts(normalize=True)
+                p_counts = parent_summary[dim]['counts']
+                q_counts = summary[dim]['counts']
+                p_counts = p_counts / p_counts.sum()
+                q_counts = q_counts / q_counts.sum()
                 all_keys = set(p_counts.keys()).union(set(q_counts.keys()))
                 if not all_keys:
                     continue
@@ -134,8 +138,7 @@ class StateEncoder:
             else:
                 encoded_set.append(0.0)
 
-            encoded_set.append(float(np.log10(data[dimension].nunique() + 1)))
-            counts = data[dimension].value_counts()
-            encoded_set.append(float(entropy(counts) if not counts.empty and counts.sum() > 0 else 0.0))
+            encoded_set.append(float(np.log10(summary[dimension]['distinct'] + 1)))
+            encoded_set.append(summary[dimension]['entropy'])
 
         return encoded_set, r_ext, r_int_js

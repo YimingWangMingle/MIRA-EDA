@@ -18,7 +18,7 @@ from recalculate_baseline_corpus_metrics.application import recalculate_all
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Recalculate official ATENA and baseline corpus metrics."
+        description=''
     )
     parser.add_argument("--results_dir", default="results")
     parser.add_argument("--seed", type=int, default=0)

@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ATENA_BASIC = ROOT / "ATENA-A-EDA" / "atena-basic"
 BENCHMARK = ROOT / "ATENA-A-EDA" / "benchmark"
 
-for path in [str(ATENA_BASIC), str(BENCHMARK)]:
+for path in [str(ROOT.parent), str(ATENA_BASIC), str(BENCHMARK)]:
     if path not in sys.path:
         sys.path.insert(0, path)
 
@@ -32,18 +32,23 @@ from atena.simulation.dataset import (
 )
 
 
+from revision_support.query_service import shared_query_run, set_query_report_path
+
+@shared_query_run
 def main():
     parser = argparse.ArgumentParser(
-        description="Evaluate official ATENA checkpoints with the official A-EDA benchmark metrics."
+        description=''
     )
     parser.add_argument("--schema", choices=["flights", "cyber"], required=True)
     parser.add_argument("--dataset_number", type=int, required=True)
     parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--load", required=True, help="Path to an official ATENA checkpoint directory.")
+    parser.add_argument("--load", required=True, help='')
     parser.add_argument("--episode_length", type=int, default=12)
     parser.add_argument("--output_dir", default=str(ROOT / "results" / "official_atena_eval"))
     parser.add_argument("--most_probable", action="store_true", default=True)
     args, passthrough = parser.parse_known_args()
+    set_query_report_path(Path(args.output_dir) / ('query_scheduler_{}{}_seed{}.json'.format(
+        args.schema, args.dataset_number, args.seed)))
 
     costs = {}
     official_steps, reward = generate_official_steps(args, passthrough, costs=costs)

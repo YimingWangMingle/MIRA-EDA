@@ -317,6 +317,11 @@ class Pipeline:
         return dataset.data[dataset.data[predicate_item.attribute] == value]
 
     def query_predicate(self, dataset: Dataset, predicate: PredicateItemGroup):
+        from revision_support.query_backends import GALAXY_BATCH
+        batch = GALAXY_BATCH.get()
+        if batch is not None:
+            dataset.data = batch.filter(self, dataset.data, predicate)
+            return dataset.data
         for item in predicate.components:
             if item.is_multiple_line_string:
                 dataset.data = self.query_predicate_item(dataset, item)

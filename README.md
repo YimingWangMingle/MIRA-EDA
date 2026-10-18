@@ -44,7 +44,7 @@ python -B run.py --dataset covertype --method mira --seeds 1 --smoke --execute
 python -B run.py --dataset covertype --method all --execute
 ```
 
-For each dataset, we run MIRA, seven comparison methods, and seven replacement ablations on fixed target seeds 1, 2, and 3: 45 runs per dataset. Each full run uses 1,000 episodes of 250 steps with 14 workers and one numerical thread per process. The target seeds define different target tasks. Asynchronous training is not bitwise deterministic.
+For each dataset, we run MIRA, seven comparison methods, and ten replacement ablations on fixed target seeds 1, 2, and 3: 54 runs per dataset. Each full run uses 1,000 episodes of 250 steps with 14 workers and one numerical thread per process. The target seeds define different target tasks. Asynchronous training is not bitwise deterministic.
 
 We use `--method baselines` or `--method ablations` to run either group, or one of the method IDs listed below to run one method. Omitting `--execute` prints the commands. PCA uses the first 16 episodes for collection and fitting, then trains for the remaining 984 episodes within the same budget.
 
@@ -101,7 +101,25 @@ We record file hashes in `manifest.json`. The shared MIRA core is in `revision_s
 
 E denotes the external task reward, B the directional exploration bonus, I interestingness, C coherency, and D diversity. The representation learner uses the external task reward for `mira` and a zero task-reward input for `mira_no_ext`; both retain analytical grounding and the latent dynamics objective.
 
-The replacement method IDs are `encoder_stats_pca`, `encoder_vae`, `encoder_frozen_random`, `reward_rnd`, `reward_count`, `reward_knn`, and `reward_random`. Each replaces one MIRA component. Covertype uses the common ten-slot candidate selector for all policies that use candidate slots.
+The replacement method IDs are `encoder_stats_pca`, `encoder_vae`, `encoder_frozen_random`, `reward_rnd`, `reward_count`, `reward_knn`, and `reward_random`. Each replaces one MIRA component. All comparison methods and these encoder/reward ablations enable result reuse, heuristic pruning, and shared execution by default.
+
+We add three MIRA query ablations, each disabling only the named component while keeping the default encoder and reward:
+
+| Method ID | Disabled component |
+|---|---|
+| `query_no_result_reuse` | Completed-result reuse and identical pending-request coalescing |
+| `query_no_heuristic_pruning` | Heuristic candidate pruning |
+| `query_no_shared_execution` | Shared intermediate execution |
+
+DORA and ATENA retain all three optimizations; we do not run separate query ablations for them. All Covertype RL variants use a common 202-slot capacity, with the default heuristic retaining at most ten successors and the no-pruning variant retaining all legal successors. This increases memory use and requires fresh training for all variants; old ten-slot checkpoints and timing results are not comparable.
+
+```bash
+for dataset in galaxy covertype; do
+  python -B run.py --dataset "$dataset" --method query_no_result_reuse --execute
+  python -B run.py --dataset "$dataset" --method query_no_heuristic_pruning --execute
+  python -B run.py --dataset "$dataset" --method query_no_shared_execution --execute
+done
+```
 
 ## Validation
 

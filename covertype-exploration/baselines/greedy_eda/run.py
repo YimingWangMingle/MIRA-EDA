@@ -14,6 +14,9 @@ for import_root in (COVERTYPE_ROOT, REPOSITORY_ROOT):
         sys.path.insert(0, str(import_root))
 
 from revision_support.covertype_defaults import configure_covertype_runtime
+from revision_support.query_service import shared_query_run, set_query_report_path
+from revision_support.query_config import add_query_arguments
+from revision_support.query_clients import register_covertype_backend
 
 configure_covertype_runtime()
 
@@ -460,8 +463,12 @@ def _write_states(path, states_by_set):
             writer.writerow([set_id] + list(state))
 
 
+@shared_query_run
 def run(args):
     args.baseline = "greedy_eda"
+    from covertype_rl.data import load_covertype
+    register_covertype_backend(load_covertype(COVERTYPE_ROOT / 'covertype.csv', n_bins=10))
+    set_query_report_path(Path(f"{_output_prefix(args)}_query_scheduler.json"))
     if int(args.selection_top_k) < 1 or int(args.selection_top_k) > int(args.candidate_slots):
         raise ValueError("selection_top_k must be between 1 and candidate_slots")
     _actions, _universe, universe_dir, _targets, preprocessing_metadata = build_context(args)
@@ -550,7 +557,7 @@ def run(args):
 def build_parser():
     from revision_support.covertype_defaults import CovertypeArgumentParser
     parser = CovertypeArgumentParser(
-        description="Run target-blind Greedy EDA on the fixed Covertype graph."
+        description=''
     )
     parser.add_argument("--baseline", choices=["greedy_eda"], default="greedy_eda")
     parser.add_argument("--target_set", default=None)
@@ -563,6 +570,7 @@ def build_parser():
     parser.add_argument("--selection_top_k", type=int, default=3)
     parser.add_argument("--output_prefix", default=None)
     parser.add_argument("--output_dir", default="outputs/GreedyEDA_count_balanced")
+    add_query_arguments(parser)
     return parser
 
 

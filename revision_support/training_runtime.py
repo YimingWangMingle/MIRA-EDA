@@ -16,3 +16,15 @@ def single_thread_environment(base=None):
 
 def configure_training_threads():
     os.environ.update(single_thread_environment())
+
+
+def seed_training(seed, worker_id=None):
+    if seed is None:
+        return
+    import random
+    import numpy as np
+    import tensorflow as tf
+    value = int(seed) if worker_id is None else int(seed) * 1000 + int(worker_id)
+    random.seed(value)
+    np.random.seed(value)
+    tf.random.set_seed(value)

@@ -12,7 +12,7 @@ from revision_support.resources import summarize_events
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description='')
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--interval", type=float, default=0.2)
     parser.add_argument('--profile-mode', choices=('events', 'aggregate'), default='events')

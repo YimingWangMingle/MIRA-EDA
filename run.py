@@ -4,13 +4,14 @@ import json
 import math
 import os
 from pathlib import Path
+from revision_support.query_config import QUERY_ABLATIONS, query_protocol
 import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent
 BASELINES = ('mira', 'mira_no_ext', 'pure_a3c', 'dora', 'atena', 'atena_no_ext', 'greedy_eda', 'random')
 ABLATIONS = ('encoder_stats_pca', 'encoder_vae', 'encoder_frozen_random',
-             'reward_rnd', 'reward_count', 'reward_knn', 'reward_random')
+             'reward_rnd', 'reward_count', 'reward_knn', 'reward_random') + tuple('query_' + v for v in QUERY_ABLATIONS)
 METHODS = BASELINES + ABLATIONS
 DATASETS = ('galaxy', 'covertype')
 
@@ -42,8 +43,7 @@ def build_jobs(root=ROOT, datasets=DATASETS, methods=METHODS, seeds=(1, 2, 3), s
                     command += ['--mode', 'scattered', '--target_seed', str(seed)]
 
 
-                    if baseline not in ('dora', 'atena', 'atena_no_ext'):
-                        command += ['--seed', str(seed)]
+                    command += ['--seed', str(seed)]
                     if baseline in ('random', 'greedy_eda'):
                         command += ['--baseline', baseline, '--output_prefix', str(directory/name)]
                         prefix = name + '_' + baseline
@@ -51,7 +51,8 @@ def build_jobs(root=ROOT, datasets=DATASETS, methods=METHODS, seeds=(1, 2, 3), s
                     else:
                         command += ['--name', base, '--output_dir', str(output), '--output_profile', 'csv']
                         prefix = name + ('_pure_a3c' if baseline == 'pure_a3c' else '')
-                        suffix = '_rewards.csv' if baseline == 'pure_a3c' else '_fusion_rewards.csv'
+                        suffix = ('_rewards.csv' if baseline == 'pure_a3c' else
+                                  '_dora_rewards.csv' if baseline == 'dora' else '_fusion_rewards.csv')
                     if baseline in ('mira', 'mira_no_ext'):
                         command += ['--w_ext', '0' if baseline == 'mira_no_ext' else '2',
                                     '--strict_episode_budget', '--exploration_wup', '0', '--spool_size', '0']
@@ -84,7 +85,10 @@ def build_jobs(root=ROOT, datasets=DATASETS, methods=METHODS, seeds=(1, 2, 3), s
                         command += ['--pca_collection_episodes', str(collection)]
                 elif method.startswith('reward_'):
                     command += ['--exploration_reward', method[len('reward_'):]]
+                query_variant = method[len('query_'):] if method.startswith('query_') else 'none'
+                command += ['--query_ablation', query_variant]
                 jobs.append(dict(dataset=dataset, method=method, seed=seed, name=name,
+                    query_processing=query_protocol(query_variant),
                     episodes=episodes, steps=250, workers=14, collection_episodes=collection,
                     learning_episodes=episodes-collection, command=command,
                     directory=str(directory), measurement_dir=str(output/'cost'/name),
@@ -110,13 +114,13 @@ def validate_rewards(job):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description='')
     parser.add_argument('--dataset', choices=('all',)+DATASETS, default='all')
     parser.add_argument('--method', choices=('all', 'baselines', 'ablations')+METHODS, default='all')
     parser.add_argument('--seeds', nargs='+', type=int, choices=(1, 2, 3), default=[1, 2, 3])
-    parser.add_argument('--smoke', action='store_true', help='Two full-length episodes; PCA uses one collection + one learning')
+    parser.add_argument('--smoke', action='store_true', help='')
     parser.add_argument('--output', type=Path)
-    parser.add_argument('--execute', action='store_true', help='Without this flag, print the plan only')
+    parser.add_argument('--execute', action='store_true', help='')
     args = parser.parse_args()
     if len(args.seeds) != len(set(args.seeds)):
         parser.error('Repeated seeds are not permitted')

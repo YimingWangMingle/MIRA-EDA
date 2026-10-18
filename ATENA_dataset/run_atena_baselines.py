@@ -13,7 +13,7 @@ def validate_args(args):
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
-        description="Run ATENA baselines on the official A-EDA benchmark."
+        description=''
     )
     parser.add_argument("--method", choices=sorted(METHODS), required=True)
     parser.add_argument("--schema", choices=["flights", "cyber"], required=True)

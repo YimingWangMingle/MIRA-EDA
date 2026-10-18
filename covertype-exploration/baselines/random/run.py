@@ -9,6 +9,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT.parent))
+from revision_support.query_service import shared_query_run, set_query_report_path, service_available
+from revision_support.query_config import add_query_arguments
+from revision_support.query_clients import register_covertype_backend
+from revision_support.candidate_pruning import sample_family_action as sample_random_operator_action
 from revision_support.covertype_defaults import configure_covertype_runtime
 
 configure_covertype_runtime()
@@ -16,6 +20,7 @@ configure_covertype_runtime()
 import numpy as np
 
 from covertype_rl.actions import build_action_space
+from covertype_rl.candidates import build_candidate_view
 from covertype_rl.data import load_covertype
 from covertype_rl.environment import FixedSetEnvironment
 from revision_support.resources import flush_events
@@ -92,6 +97,8 @@ def build_context(args):
         csv_path = root_dir / csv_path
 
     data = load_covertype(csv_path, n_bins=args.n_bins)
+    if service_available():
+        register_covertype_backend(data)
     target_items, target_path = resolve_target_set(
         data,
         root_dir=root_dir,
@@ -135,11 +142,6 @@ def build_action_groups(actions):
     return groups
 
 
-def sample_random_operator_action(action_groups, rng):
-    family = str(rng.choice(OPERATOR_FAMILIES))
-    return int(rng.choice(action_groups[family]))
-
-
 def run_worker(worker_args):
     args, worker_id, start_episode, end_episode = worker_args
     random.seed(int(args.seed) + worker_id)
@@ -180,7 +182,9 @@ def run_worker(worker_args):
         episode_set_ids = set()
 
         for step in range(1, int(args.steps) + 1):
-            action_id = sample_random_operator_action(action_groups, rng)
+            _, candidate_actions = build_candidate_view(universe, actions, env.current_set_id)
+            valid_ids = [i for group in candidate_actions for i in group] or env.valid_actions().tolist()
+            action_id = sample_random_operator_action(action_groups, rng, valid_ids)
             found_items_before_step = dict(env.found_items_with_ratio)
             _state, metrics, set_id, valid = env.step(action_id)
             action = actions[action_id]
@@ -322,8 +326,15 @@ def write_states(path, states_by_set):
             writer.writerow([set_id] + list(state))
 
 
+@shared_query_run
 def run(args):
     args.baseline = "random"
+
+    args._validated_cache = None
+    prefix = output_prefix_path(args)
+    set_query_report_path(Path(f"{prefix}_query_scheduler.json"))
+    Path(f"{prefix}_random_config.json").write_text(json.dumps(
+        {k: v for k, v in vars(args).items() if not k.startswith('_')}, indent=2), encoding='utf-8')
     build_context(args)
     tasks = [
         (args, worker_id, start, end)
@@ -377,7 +388,7 @@ def run(args):
 def build_parser():
     from revision_support.covertype_defaults import CovertypeArgumentParser
     parser = CovertypeArgumentParser(
-        description="Run Covertype random operator baseline over the fixed-set graph."
+        description=''
     )
     parser.add_argument("--baseline", choices=["random"], default="random")
     parser.add_argument("--csv_path", default="covertype.csv")
@@ -396,6 +407,7 @@ def build_parser():
     parser.add_argument("--force_preprocess", action="store_true")
     parser.add_argument("--output_prefix", default=None)
     parser.add_argument("--output_dir", default="outputs/random")
+    add_query_arguments(parser)
     return parser
 
 

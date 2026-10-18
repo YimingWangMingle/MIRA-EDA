@@ -111,8 +111,7 @@ We add three MIRA query ablations, each disabling only the named component while
 | `query_no_heuristic_pruning` | Heuristic candidate pruning |
 | `query_no_shared_execution` | Shared intermediate execution |
 
-DORA and ATENA retain all three optimizations; All Covertype RL variants use a common 202-slot capacity, with the default heuristic retaining at most ten successors and the no-pruning variant retaining all legal successors. This increases memory use and requires fresh training for all variants; old ten-slot checkpoints and timing results are not comparable.
-
+DORA and ATENA retain all three optimizations; All Covertype RL variants use a common 202-slot capacity, with the default heuristic retaining at most ten successors and the no-pruning variant retaining all legal successors. This increases memory use and requires fresh training for all variants.
 ```bash
 for dataset in galaxy covertype; do
   python -B run.py --dataset "$dataset" --method query_no_result_reuse --execute
